@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# IDE
+.vscode/
+.idea/
+.windsurf/
+
+# OS files
+.DS_Store
+Thumbs.db
+*~$*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Uploads (keep structure but ignore uploaded files)
+backend/public/uploads/products/*
+backend/public/uploads/banners/*
+backend/public/uploads/users/*
+backend/public/uploads/general/*
+!backend/public/uploads/**/.gitkeep
+
+# Test files
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
