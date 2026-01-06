@@ -254,7 +254,7 @@ const BannerForm: React.FC<BannerFormProps> = ({
                   </Select>
                 </FormControl>
 
-                <FormControl fullWidth margin="normal">
+                {/* <FormControl fullWidth margin="normal">
                   <InputLabel>Vị trí hiển thị</InputLabel>
                   <Select
                     name="position"
@@ -267,7 +267,7 @@ const BannerForm: React.FC<BannerFormProps> = ({
                     <MenuItem value="bottom">Cuối trang</MenuItem>
                     <MenuItem value="sidebar">Thanh bên</MenuItem>
                   </Select>
-                </FormControl>
+                </FormControl> */}
               </Box>
 
               <TextField
