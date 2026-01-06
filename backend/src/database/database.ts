@@ -26,11 +26,12 @@ const getDbConfig = () => {
   if (process.env.MYSQLHOST) {
     console.log("📦 Using Railway MySQL environment variables");
     return {
-      host: process.env.MYSQLHOST,
-      port: parseInt(process.env.MYSQLPORT || "3306"),
+      host: process.env.MYSQLHOST || "centerbeam.proxy.rlwy.net",
+      port: parseInt(process.env.MYSQLPORT || "19932"),
       user: process.env.MYSQLUSER || "root",
       password: process.env.MYSQLPASSWORD,
       database: process.env.MYSQLDATABASE || "railway",
+      ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : undefined,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,

@@ -1,5 +1,5 @@
 -- Schema cho Railway MySQL (database: railway)
-
+USE railway;
 -- Bảng người dùng
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
