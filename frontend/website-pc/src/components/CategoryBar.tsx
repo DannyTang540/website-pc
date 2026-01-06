@@ -1,4 +1,4 @@
-// CategoryBar.tsx - Chỉ cải thiện style, không thay đổi logic
+// CategoryBar.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   AppBar,
@@ -295,7 +295,7 @@ const CategoryBar: React.FC = () => {
               }}
             >
               <Link
-                to={`/category/${category.slug}`}
+                to={`/product?category=${encodeURIComponent(category.slug)}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowCategories(false);
@@ -328,7 +328,9 @@ const CategoryBar: React.FC = () => {
                   <MenuItem
                     key={subcategory.id}
                     component={Link}
-                    to={`/category/${category.slug}/${subcategory.slug}`}
+                    to={`/product?category=${encodeURIComponent(
+                      subcategory.slug
+                    )}`}
                     onClick={() => {
                       setShowCategories(false);
                       handleMenuClose();
@@ -525,7 +527,9 @@ const CategoryBar: React.FC = () => {
                 <ListItem disablePadding>
                   <ListItemButton
                     component={Link}
-                    to={`/products?category=${category.slug}`}
+                    to={`/product?category=${encodeURIComponent(
+                      category.slug
+                    )}`}
                     onClick={() => setMobileDrawerOpen(false)}
                     sx={{
                       borderRadius: 2,
@@ -562,11 +566,64 @@ const CategoryBar: React.FC = () => {
                   unmountOnExit
                 >
                   <List component="div" disablePadding>
+                    <ListItem disablePadding>
+                      <ListItemButton
+                        component={Link}
+                        to={`/product?category=${encodeURIComponent(
+                          category.slug
+                        )}`}
+                        onClick={() => setMobileDrawerOpen(false)}
+                        sx={{
+                          pl: 4,
+                          py: 1.5,
+                          borderRadius: 1,
+                          mb: 0.5,
+                          bgcolor: "rgba(0, 0, 0, 0.2)",
+                          transition: "all 0.3s ease",
+                          position: "relative",
+                          overflow: "hidden",
+                          "&:hover": {
+                            bgcolor: "rgba(33, 150, 243, 0.3)",
+                            pl: 5,
+                            "&::before": {
+                              width: "4px",
+                            },
+                          },
+                          "&::before": {
+                            content: '""',
+                            position: "absolute",
+                            left: 0,
+                            top: 0,
+                            height: "100%",
+                            width: "0",
+                            background:
+                              "linear-gradient(to bottom, #FFD700, #FF9800)",
+                            transition: "width 0.3s ease",
+                          },
+                        }}
+                      >
+                        <ListItemText
+                          primary={
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: "rgba(255, 255, 255, 0.9)",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Tất cả {category.name}
+                            </Typography>
+                          }
+                        />
+                      </ListItemButton>
+                    </ListItem>
                     {category.subcategories.map((subcategory) => (
                       <ListItem key={subcategory.id} disablePadding>
                         <ListItemButton
                           component={Link}
-                          to={`/products?category=${subcategory.slug}`}
+                          to={`/product?category=${encodeURIComponent(
+                            subcategory.slug
+                          )}`}
                           onClick={() => setMobileDrawerOpen(false)}
                           sx={{
                             pl: 4,
