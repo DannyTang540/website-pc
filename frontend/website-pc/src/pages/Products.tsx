@@ -11,9 +11,6 @@ import {
   Stack,
   Chip,
   Fade,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   useTheme,
   IconButton,
   CircularProgress,
@@ -23,18 +20,13 @@ import { useCart } from "../contexts/CartContext";
 import { useFavorites } from "../contexts/FavoritesContext";
 import type { Product, ProductFilter } from "../types/product";
 import { productService } from "../services/productService";
-import {
-  ExpandMore,
-  Star,
-  Favorite,
-  ShoppingCart,
-  Visibility,
-} from "@mui/icons-material";
+import { Star, Favorite, ShoppingCart, Visibility } from "@mui/icons-material";
 import { getFirstProductImage } from "../utils/imageUtils";
 import { categoryService } from "../services/categoryService";
 
 interface CategoryGroup {
   category: string;
+  title: string;
   products: Product[];
 }
 
@@ -47,10 +39,6 @@ const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [expandedCategory, setExpandedCategory] = useState<string | false>(
-    false
-  );
-  const [visibleCategories, setVisibleCategories] = useState(5);
   const [error, setError] = useState<string | null>(null);
   const [categoryNameById, setCategoryNameById] = useState<
     Record<string, string>
@@ -135,43 +123,43 @@ const Products: React.FC = () => {
       setError(null);
 
       try {
-        // Build filter object
-        const filter: ProductFilter = {
-          page: 1,
-          limit: 100, // Fetch more items to ensure we get all categories
-          status: "active", // Only fetch active products
+        // Build base filter
+        const baseFilter: ProductFilter = {
+          limit: 100,
         };
 
         // Add category filter if specified in URL
         if (selectedCategoryId) {
-          filter.categoryId = selectedCategoryId;
+          baseFilter.categoryId = selectedCategoryId;
         } else if (categoryParam) {
           // Fallback for older links that pass slug/name; backend will try to resolve.
-          filter.category = categoryParam;
+          baseFilter.category = categoryParam;
         }
 
-        console.log("Fetching products with filter:", filter);
+        // Fetch ALL pages so /product shows full catalog
+        const allProducts: Product[] = [];
+        let page = 1;
+        let totalPages = 1;
+        const maxPages = 50;
 
-        // Fetch products with the filter
-        const { products: fetchedProducts } = await productService.getProducts(
-          filter
-        );
+        do {
+          const { products: pageProducts, totalPages: pages } =
+            await productService.getProducts({ ...baseFilter, page });
 
-        // DEBUG: Kiểm tra dữ liệu nhận được
-        console.log("Raw API response - first product:", fetchedProducts[0]);
-        console.log("All products count:", fetchedProducts.length);
+          if (Array.isArray(pageProducts) && pageProducts.length > 0) {
+            allProducts.push(...pageProducts);
+          }
 
-        // Debug chi tiết cho mỗi sản phẩm
-        fetchedProducts.forEach((p, i) => {
-          console.log(`Product ${i} - ${p.name}:`, {
-            hasImages: Array.isArray(p.images),
-            imagesCount: p.images?.length || 0,
-            hasImage: !!p.image,
-            imageValue: p.image,
-            productId: p.id,
-            slug: p.slug,
-          });
+          totalPages = Math.max(1, Number(pages || 1));
+          page += 1;
+        } while (page <= totalPages && page <= maxPages);
+
+        // Deduplicate by id (defensive)
+        const uniqById = new Map<string, Product>();
+        allProducts.forEach((p) => {
+          if (p?.id) uniqById.set(String(p.id), p);
         });
+        const fetchedProducts = Array.from(uniqById.values());
 
         if (!fetchedProducts || fetchedProducts.length === 0) {
           setError("Không tìm thấy sản phẩm nào");
@@ -180,23 +168,6 @@ const Products: React.FC = () => {
         }
 
         setProducts(fetchedProducts);
-
-        // If there's a category parameter, expand that category
-        if (categoryParam || categoryIdParam) {
-          const firstProduct = fetchedProducts[0];
-          if (firstProduct?.category) {
-            setExpandedCategory(firstProduct.category);
-          } else if (firstProduct?.categoryId) {
-            // If category name is not available, use categoryId
-            setExpandedCategory(firstProduct.categoryId);
-          }
-        } else if (fetchedProducts.length > 0) {
-          // Expand the first category by default if no specific category is selected
-          const firstProduct = fetchedProducts[0];
-          if (firstProduct?.category) {
-            setExpandedCategory(firstProduct.category);
-          }
-        }
       } catch (err) {
         console.error("Lỗi khi tải sản phẩm:", err);
         setError("Đã xảy ra lỗi khi tải danh sách sản phẩm");
@@ -266,25 +237,28 @@ const Products: React.FC = () => {
 
     // Group by category
     filteredProducts.forEach((product) => {
-      // Use category name if available, otherwise use categoryId, fallback to "Chưa phân loại"
-      const categoryName =
-        product.category || product.categoryId || "Chưa phân loại";
-      if (!categoryMap.has(categoryName)) {
-        categoryMap.set(categoryName, []);
+      const key = product.categoryId || product.category || "__uncategorized__";
+      if (!categoryMap.has(key)) {
+        categoryMap.set(key, []);
       }
-      categoryMap.get(categoryName)?.push(product);
+      categoryMap.get(key)?.push(product);
     });
 
     // Convert to array and sort categories
     categoryMap.forEach((products, category) => {
+      const title =
+        category === "__uncategorized__"
+          ? "Chưa phân loại"
+          : categoryNameById[category] || category;
       groups.push({
         category,
+        title,
         products: products.sort((a, b) => a.name.localeCompare(b.name)),
       });
     });
 
     // Sort categories alphabetically
-    return groups.sort((a, b) => a.category.localeCompare(b.category));
+    return groups.sort((a, b) => a.title.localeCompare(b.title));
   }, [
     products,
     searchTerm,
@@ -296,16 +270,6 @@ const Products: React.FC = () => {
 
   const isFavorite = (productId: string) => {
     return favorites?.some((fav) => fav?.id === productId) || false;
-  };
-
-  const handleCategoryChange =
-    (category: string) =>
-    (_event: React.SyntheticEvent, isExpanded: boolean) => {
-      setExpandedCategory(isExpanded ? category : false);
-    };
-
-  const handleLoadMore = () => {
-    setVisibleCategories((prev) => prev + 2);
   };
 
   const handleAddToCart = async (product: Product) => {
@@ -398,301 +362,262 @@ const Products: React.FC = () => {
         </Box>
       ) : (
         <Stack spacing={3}>
-          {categoryGroups.slice(0, visibleCategories).map((group, index) => (
+          {categoryGroups.map((group, index) => (
             <Fade key={group.category} in={true} timeout={500 + index * 100}>
               <Paper
                 elevation={3}
                 sx={{
-                  overflow: "overlay",
+                  overflow: "hidden",
                   borderRadius: 2,
                   background: `linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.95))`,
                 }}
               >
-                <Accordion
-                  expanded={expandedCategory === group.category}
-                  onChange={handleCategoryChange(group.category)}
+                <Box
                   sx={{
-                    "&:before": { display: "none" },
-                    boxShadow: "none",
+                    px: 3,
+                    py: 2,
+                    background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.secondary.light})`,
+                    color: "white",
                   }}
                 >
-                  <AccordionSummary
-                    expandIcon={<ExpandMore />}
+                  <Typography variant="h5" sx={{ fontWeight: "bold" }}>
+                    {group.title} ({group.products.length} sản phẩm)
+                  </Typography>
+                </Box>
+
+                <Box sx={{ p: 3 }}>
+                  <Box
                     sx={{
-                      background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.secondary.light})`,
-                      color: "white",
-                      "& .MuiAccordionSummary-content": {
-                        margin: "12px 0",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 3,
+                      "& > *": {
+                        flex: "1 1 250px",
+                        maxWidth: "100%",
+                        "@media (min-width: 600px)": {
+                          flex: "1 1 calc(50% - 12px)",
+                          maxWidth: "calc(50% - 12px)",
+                        },
+                        "@media (min-width: 900px)": {
+                          flex: "1 1 calc(33.333% - 16px)",
+                          maxWidth: "calc(33.333% - 16px)",
+                        },
+                        "@media (min-width: 1200px)": {
+                          flex: "1 1 calc(20% - 16px)",
+                          maxWidth: "calc(20% - 16px)",
+                        },
                       },
                     }}
                   >
-                    <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-                      {(categoryNameById[group.category] || group.category) +
-                        ` (${group.products.length} sản phẩm)`}
-                    </Typography>
-                  </AccordionSummary>
-                  <AccordionDetails sx={{ p: 3 }}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 3,
-                        "& > *": {
-                          flex: "1 1 250px",
-                          maxWidth: "100%",
-                          "@media (min-width: 600px)": {
-                            flex: "1 1 calc(50% - 12px)",
-                            maxWidth: "calc(50% - 12px)",
-                          },
-                          "@media (min-width: 900px)": {
-                            flex: "1 1 calc(33.333% - 16px)",
-                            maxWidth: "calc(33.333% - 16px)",
-                          },
-                          "@media (min-width: 1200px)": {
-                            flex: "1 1 calc(20% - 16px)",
-                            maxWidth: "calc(20% - 16px)",
-                          },
-                        },
-                      }}
-                    >
-                      {group.products.map((product) => (
-                        <Box key={product.id}>
-                          <Card
-                            sx={{
-                              height: "100%",
-                              display: "flex",
-                              flexDirection: "column",
-                              transition: "all 0.3s ease",
-                              cursor: "pointer",
-                              position: "relative",
-                              overflow: "hidden",
-                              "&:hover": {
-                                transform: "translateY(-8px)",
-                                boxShadow: theme.shadows[8],
-                                "& .product-image": {
-                                  transform: "scale(1.05)",
-                                },
-                                "& .product-actions": {
-                                  opacity: 1,
-                                },
+                    {group.products.map((product) => (
+                      <Box key={product.id}>
+                        <Card
+                          sx={{
+                            height: "100%",
+                            display: "flex",
+                            flexDirection: "column",
+                            transition: "all 0.3s ease",
+                            cursor: "pointer",
+                            position: "relative",
+                            overflow: "hidden",
+                            "&:hover": {
+                              transform: "translateY(-8px)",
+                              boxShadow: theme.shadows[8],
+                              "& .product-actions": {
+                                opacity: 1,
                               },
-                            }}
-                            onClick={() => handleViewProduct(product)}
-                          >
-                            {product.isFeatured && (
-                              <Chip
-                                label="Nổi bật"
-                                color="secondary"
-                                size="small"
-                                sx={{
-                                  position: "absolute",
-                                  top: 8,
-                                  right: 8,
-                                  zIndex: 1,
-                                  fontSize: "0.7rem",
-                                }}
-                              />
-                            )}
-                            <CardMedia
-                              component="img"
-                              image={
-                                getFirstProductImage(product) ||
-                                "/placeholder-image.png"
-                              }
-                              alt={product.name}
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.onerror = null;
-                                target.src = "/placeholder-image.png";
-                              }}
+                            },
+                          }}
+                          onClick={() => handleViewProduct(product)}
+                        >
+                          {product.isFeatured && (
+                            <Chip
+                              label="Nổi bật"
+                              color="secondary"
+                              size="small"
                               sx={{
-                                height: 200,
-                                objectFit: "contain",
-                                transition: "transform 0.3s ease",
-                                className: "product-image",
-                                backgroundColor: "#f5f5f5",
+                                position: "absolute",
+                                top: 8,
+                                right: 8,
+                                zIndex: 1,
+                                fontSize: "0.7rem",
                               }}
                             />
-                            <CardContent sx={{ flexGrow: 1, p: 2 }}>
+                          )}
+                          <CardMedia
+                            component="img"
+                            image={
+                              getFirstProductImage(product) ||
+                              "/placeholder-image.png"
+                            }
+                            alt={product.name}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.onerror = null;
+                              target.src = "/placeholder-image.png";
+                            }}
+                            sx={{
+                              height: 200,
+                              objectFit: "contain",
+                              transition: "transform 0.3s ease",
+                              backgroundColor: "#f5f5f5",
+                            }}
+                          />
+                          <CardContent sx={{ flexGrow: 1, p: 2 }}>
+                            <Typography
+                              variant="h6"
+                              component="h3"
+                              sx={{
+                                fontWeight: "bold",
+                                mb: 1,
+                                fontSize: "0.9rem",
+                                lineHeight: 1.3,
+                                height: 48,
+                                overflow: "hidden",
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                              }}
+                            >
+                              {product.name}
+                            </Typography>
+                            <Box sx={{ mb: 1 }}>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontSize: "0.8rem" }}
+                              >
+                                {product.brand}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                mb: 1,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              <Box
+                                sx={{ display: "flex", alignItems: "center" }}
+                              >
+                                <Star
+                                  sx={{
+                                    fontSize: 16,
+                                    color: "#FFD700",
+                                    mr: 0.5,
+                                  }}
+                                />
+                                <Typography
+                                  variant="body2"
+                                  sx={{ fontSize: "0.8rem" }}
+                                >
+                                  {product.rating || 4.0}
+                                </Typography>
+                              </Box>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ fontSize: "0.8rem" }}
+                              >
+                                ({product.reviewCount || 0})
+                              </Typography>
+                            </Box>
+                            <Box sx={{ mb: 2 }}>
                               <Typography
                                 variant="h6"
-                                component="h3"
-                                sx={{
-                                  fontWeight: "bold",
-                                  mb: 1,
-                                  fontSize: "0.9rem",
-                                  lineHeight: 1.3,
-                                  height: 48,
-                                  overflow: "hidden",
-                                  display: "-webkit-box",
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: "vertical",
-                                }}
+                                color="primary"
+                                sx={{ fontWeight: "bold", fontSize: "1rem" }}
                               >
-                                {product.name}
+                                {formatPrice(product.price)}
                               </Typography>
-                              <Box sx={{ mb: 1 }}>
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                  sx={{ fontSize: "0.8rem" }}
-                                >
-                                  {product.brand}
-                                </Typography>
-                              </Box>
-                              <Box
-                                sx={{
-                                  mb: 1,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 1,
-                                }}
-                              >
-                                <Box
-                                  sx={{ display: "flex", alignItems: "center" }}
-                                >
-                                  <Star
-                                    sx={{
-                                      fontSize: 16,
-                                      color: "#FFD700",
-                                      mr: 0.5,
-                                    }}
-                                  />
+                              {product.originalPrice &&
+                                product.originalPrice > product.price && (
                                   <Typography
                                     variant="body2"
-                                    sx={{ fontSize: "0.8rem" }}
+                                    color="text.secondary"
+                                    sx={{
+                                      textDecoration: "line-through",
+                                      fontSize: "0.8rem",
+                                    }}
                                   >
-                                    {product.rating || 4.0}
+                                    {formatPrice(product.originalPrice)}
                                   </Typography>
-                                </Box>
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                  sx={{ fontSize: "0.8rem" }}
-                                >
-                                  ({product.reviewCount || 0})
-                                </Typography>
-                              </Box>
-                              <Box sx={{ mb: 2 }}>
-                                <Typography
-                                  variant="h6"
-                                  color="primary"
-                                  sx={{ fontWeight: "bold", fontSize: "1rem" }}
-                                >
-                                  {formatPrice(product.price)}
-                                </Typography>
-                                {product.originalPrice &&
-                                  product.originalPrice > product.price && (
-                                    <Typography
-                                      variant="body2"
-                                      color="text.secondary"
-                                      sx={{
-                                        textDecoration: "line-through",
-                                        fontSize: "0.8rem",
-                                      }}
-                                    >
-                                      {formatPrice(product.originalPrice)}
-                                    </Typography>
-                                  )}
-                              </Box>
-                              <Box
+                                )}
+                            </Box>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                                mb: 2,
+                              }}
+                            >
+                              <Chip
+                                label={
+                                  product.stock && product.stock > 0
+                                    ? `Còn hàng (${product.stock})`
+                                    : "Hết hàng"
+                                }
+                                color={
+                                  product.stock && product.stock > 0
+                                    ? "success"
+                                    : "error"
+                                }
+                                size="small"
+                                sx={{ fontSize: "0.7rem" }}
+                              />
+                            </Box>
+                          </CardContent>
+                          <Box
+                            className="product-actions"
+                            sx={{
+                              p: 2,
+                              pt: 0,
+                              opacity: 0,
+                              transition: "opacity 0.3s ease",
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Stack direction="row" spacing={1}>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<ShoppingCart />}
+                                onClick={() => handleAddToCart(product)}
+                                disabled={!product.stock || product.stock === 0}
+                                sx={{ flex: 1, fontSize: "0.8rem" }}
+                              >
+                                Thêm vào giỏ
+                              </Button>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleToggleFavorite(product)}
                                 sx={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 1,
-                                  mb: 2,
+                                  color: isFavorite(product.id)
+                                    ? "error.main"
+                                    : "text.secondary",
                                 }}
                               >
-                                <Chip
-                                  label={
-                                    product.stock && product.stock > 0
-                                      ? `Còn hàng (${product.stock})`
-                                      : "Hết hàng"
-                                  }
-                                  color={
-                                    product.stock && product.stock > 0
-                                      ? "success"
-                                      : "error"
-                                  }
-                                  size="small"
-                                  sx={{ fontSize: "0.7rem" }}
-                                />
-                              </Box>
-                            </CardContent>
-                            <Box
-                              className="product-actions"
-                              sx={{
-                                p: 2,
-                                pt: 0,
-                                opacity: 0,
-                                transition: "opacity 0.3s ease",
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Stack direction="row" spacing={1}>
-                                <Button
-                                  variant="contained"
-                                  size="small"
-                                  startIcon={<ShoppingCart />}
-                                  onClick={() => handleAddToCart(product)}
-                                  disabled={
-                                    !product.stock || product.stock === 0
-                                  }
-                                  sx={{ flex: 1, fontSize: "0.8rem" }}
-                                >
-                                  Thêm vào giỏ
-                                </Button>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleToggleFavorite(product)}
-                                  sx={{
-                                    color: isFavorite(product.id)
-                                      ? "error.main"
-                                      : "text.secondary",
-                                  }}
-                                >
-                                  <Favorite />
-                                </IconButton>
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleViewProduct(product)}
-                                  sx={{ color: "text.secondary" }}
-                                >
-                                  <Visibility />
-                                </IconButton>
-                              </Stack>
-                            </Box>
-                          </Card>
-                        </Box>
-                      ))}
-                    </Box>
-                  </AccordionDetails>
-                </Accordion>
+                                <Favorite />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleViewProduct(product)}
+                                sx={{ color: "text.secondary" }}
+                              >
+                                <Visibility />
+                              </IconButton>
+                            </Stack>
+                          </Box>
+                        </Card>
+                      </Box>
+                    ))}
+                  </Box>
+                </Box>
               </Paper>
             </Fade>
           ))}
-
-          {/* Load More Button */}
-          {!categoryParam && visibleCategories < categoryGroups.length && (
-            <Box sx={{ textAlign: "center", mt: 4 }}>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={handleLoadMore}
-                sx={{
-                  px: 6,
-                  py: 1.5,
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                  "&:hover": {
-                    background: `linear-gradient(135deg, ${theme.palette.primary.dark}, ${theme.palette.secondary.dark})`,
-                  },
-                }}
-              >
-                Xem thêm ({categoryGroups.length - visibleCategories} danh mục
-                còn lại)
-              </Button>
-            </Box>
-          )}
         </Stack>
       )}
     </Container>
