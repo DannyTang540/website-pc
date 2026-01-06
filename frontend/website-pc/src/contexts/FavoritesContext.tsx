@@ -18,7 +18,7 @@ export interface FavoriteItem {
 
 interface FavoritesContextType {
   favorites: FavoriteItem[];
-  addToFavorites: (productId: string) => Promise<void>;
+  addToFavorites: (productId: string) => Promise<boolean>;
   removeFromFavorites: (productId: string) => Promise<void>;
   isFavorite: (productId: string) => Promise<boolean>;
   clearFavorites: () => Promise<void>;

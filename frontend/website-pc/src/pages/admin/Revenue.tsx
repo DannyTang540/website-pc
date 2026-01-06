@@ -9,7 +9,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Paper,
   Table,
   TableBody,
   TableCell,

@@ -1,4 +1,5 @@
-import { useSnackbar, SnackbarKey, OptionsObject } from "notistack";
+import { useSnackbar } from "notistack";
+import type { SnackbarKey, OptionsObject } from "notistack";
 import { useCallback, useRef } from "react";
 
 interface SafeSnackbar {

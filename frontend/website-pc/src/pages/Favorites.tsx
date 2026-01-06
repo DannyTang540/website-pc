@@ -44,7 +44,8 @@ interface FavoriteItem {
 
 const Favorites: React.FC = () => {
   const { user } = useAuth();
-  const { favorites, loading, error, removeFromFavorites, clearFavorites } = useFavorites();
+  const { favorites, loading, error, removeFromFavorites, clearFavorites } =
+    useFavorites();
   const { addToCart } = useCart();
   const theme = useTheme();
   const [localLoading, setLocalLoading] = useState<string | null>(null);
@@ -64,48 +65,54 @@ const Favorites: React.FC = () => {
     window.location.reload();
   }, []);
 
-  const handleAddToCart = useCallback(async (product: Product) => {
-    try {
-      setLocalLoading(product.id);
-      await addToCart({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        quantity: 1,
-        image: product.images?.[0] || product.image || "",
-      });
-      setSuccessMessage("Đã thêm sản phẩm vào giỏ hàng");
-      const timer = setTimeout(() => setSuccessMessage(null), 3000);
-      return () => clearTimeout(timer);
-    } catch (err: unknown) {
-      console.error("Error adding to cart:", err);
-      setErrorMessage("Không thể thêm sản phẩm vào giỏ hàng. Vui lòng thử lại.");
-      const timer = setTimeout(() => setErrorMessage(null), 3000);
-      return () => clearTimeout(timer);
-    } finally {
-      setLocalLoading(null);
-    }
-  }, [addToCart]);
+  const handleAddToCart = useCallback(
+    async (product: Product) => {
+      try {
+        setLocalLoading(product.id);
+        await addToCart(product.id);
+        setSuccessMessage("Đã thêm sản phẩm vào giỏ hàng");
+        const timer = setTimeout(() => setSuccessMessage(null), 3000);
+        return () => clearTimeout(timer);
+      } catch (err: unknown) {
+        console.error("Error adding to cart:", err);
+        setErrorMessage(
+          "Không thể thêm sản phẩm vào giỏ hàng. Vui lòng thử lại."
+        );
+        const timer = setTimeout(() => setErrorMessage(null), 3000);
+        return () => clearTimeout(timer);
+      } finally {
+        setLocalLoading(null);
+      }
+    },
+    [addToCart]
+  );
 
-  const handleRemoveFavorite = useCallback(async (favoriteId: string) => {
-    try {
-      setLocalLoading(`remove-${favoriteId}`);
-      await removeFromFavorites(favoriteId);
-      setSuccessMessage("Đã xóa khỏi danh sách yêu thích");
-      const timer = setTimeout(() => setSuccessMessage(null), 3000);
-      return () => clearTimeout(timer);
-    } catch (err: unknown) {
-      console.error("Error removing from favorites:", err);
-      setErrorMessage("Không thể xóa khỏi danh sách yêu thích. Vui lòng thử lại.");
-      const timer = setTimeout(() => setErrorMessage(null), 3000);
-      return () => clearTimeout(timer);
-    } finally {
-      setLocalLoading(null);
-    }
-  }, [removeFromFavorites]);
+  const handleRemoveFavorite = useCallback(
+    async (favoriteId: string) => {
+      try {
+        setLocalLoading(`remove-${favoriteId}`);
+        await removeFromFavorites(favoriteId);
+        setSuccessMessage("Đã xóa khỏi danh sách yêu thích");
+        const timer = setTimeout(() => setSuccessMessage(null), 3000);
+        return () => clearTimeout(timer);
+      } catch (err: unknown) {
+        console.error("Error removing from favorites:", err);
+        setErrorMessage(
+          "Không thể xóa khỏi danh sách yêu thích. Vui lòng thử lại."
+        );
+        const timer = setTimeout(() => setErrorMessage(null), 3000);
+        return () => clearTimeout(timer);
+      } finally {
+        setLocalLoading(null);
+      }
+    },
+    [removeFromFavorites]
+  );
 
   const handleClearFavorites = useCallback(async () => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa tất cả sản phẩm yêu thích?")) {
+    if (
+      window.confirm("Bạn có chắc chắn muốn xóa tất cả sản phẩm yêu thích?")
+    ) {
       try {
         setClearLoading(true);
         await clearFavorites();
@@ -114,7 +121,9 @@ const Favorites: React.FC = () => {
         return () => clearTimeout(timer);
       } catch (err: unknown) {
         console.error("Error clearing favorites:", err);
-        setErrorMessage("Không thể xóa tất cả sản phẩm yêu thích. Vui lòng thử lại.");
+        setErrorMessage(
+          "Không thể xóa tất cả sản phẩm yêu thích. Vui lòng thử lại."
+        );
         const timer = setTimeout(() => setErrorMessage(null), 3000);
         return () => clearTimeout(timer);
       } finally {
@@ -182,7 +191,10 @@ const Favorites: React.FC = () => {
     );
   }
 
-  const totalPrice = favorites.reduce((sum, item) => sum + item.product.price, 0);
+  const totalPrice = favorites.reduce(
+    (sum, item) => sum + item.product.price,
+    0
+  );
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -216,7 +228,8 @@ const Favorites: React.FC = () => {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                background: 'url(\'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>\')',
+                background:
+                  'url(\'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>\')',
                 opacity: 0.3,
               },
             }}
@@ -428,7 +441,9 @@ const Favorites: React.FC = () => {
                           fontSize: "0.875rem",
                         }}
                       >
-                        {localLoading === item.product.id ? "Đang thêm..." : "Thêm vào giỏ"}
+                        {localLoading === item.product.id
+                          ? "Đang thêm..."
+                          : "Thêm vào giỏ"}
                       </Button>
                     </Box>
                   </CardContent>

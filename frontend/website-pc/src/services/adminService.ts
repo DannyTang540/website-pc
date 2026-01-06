@@ -27,7 +27,7 @@ const convertToFormData = (data: any): FormData => {
     if (Array.isArray(value)) {
       // For images that are files
       if (key === "images" && value.some((item) => item instanceof File)) {
-        value.forEach((file, index) => {
+        value.forEach((file) => {
           if (file instanceof File) {
             formData.append("images", file);
           } else if (typeof file === "string") {
@@ -373,6 +373,9 @@ export const adminService = {
     }) => api.get<PaginatedResponse<Order>>("/orders", { params }),
 
     getById: (id: string) => api.get<Order>(`/orders/${id}`),
+
+    update: (id: string, data: Partial<Order>) =>
+      api.put<Order>(`/orders/${id}`, data),
 
     updateStatus: (id: string, status: Order["status"]) =>
       api.put<Order>(`/orders/${id}/status`, { status }),

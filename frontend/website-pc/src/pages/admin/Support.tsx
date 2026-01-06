@@ -4,7 +4,6 @@ import {
   Button,
   Chip,
   Divider,
-  Grid,
   IconButton,
   InputAdornment,
   Paper,
@@ -33,14 +32,11 @@ import {
   List,
   TextareaAutosize,
 } from "@mui/material";
-import type { SelectChangeEvent } from "@mui/material/Select";
 import {
   Search as SearchIcon,
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   Chat as ChatIcon,
-  Email as EmailIcon,
-  Phone as PhoneIcon,
   Person as PersonIcon,
   Assignment as TicketIcon,
   Refresh as RefreshIcon,
@@ -92,7 +88,8 @@ interface TabPanelProps {
   value: number;
 }
 
-function TabPanel(props: TabPanelProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
 
   return (

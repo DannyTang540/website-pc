@@ -13,7 +13,6 @@ import {
   TextField,
   IconButton,
   Chip,
-  Paper,
   Table,
   TableBody,
   TableCell,
@@ -48,11 +47,12 @@ interface FilterCriterion {
 
 const FilterCriteria: React.FC = () => {
   const [criteria, setCriteria] = useState<FilterCriterion[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [openDialog, setOpenDialog] = useState(false);
-  const [editingCriterion, setEditingCriterion] = useState<FilterCriterion | null>(null);
+  const [editingCriterion, setEditingCriterion] =
+    useState<FilterCriterion | null>(null);
   const [formData, setFormData] = useState<FilterCriterion>({
     name: "",
     type: "category",
@@ -70,7 +70,8 @@ const FilterCriteria: React.FC = () => {
   const loadCategories = async () => {
     try {
       const resp = await adminService.categories.getAll();
-      const data = Array.isArray(resp.data) ? resp.data : resp.data?.data || [];
+      const respData = resp.data as any;
+      const data = Array.isArray(respData) ? respData : respData?.data || [];
       setCategories(data);
     } catch (error) {
       console.error("Error loading categories:", error);
@@ -87,8 +88,20 @@ const FilterCriteria: React.FC = () => {
         const defaultCriteria: FilterCriterion[] = [
           { id: "1", name: "Danh mục", type: "category", active: true },
           { id: "2", name: "Thương hiệu", type: "brand", active: true },
-          { id: "3", name: "Khoảng giá", type: "price", active: true, minValue: 0, maxValue: 100000000 },
-          { id: "4", name: "Thông số kỹ thuật", type: "specification", active: true },
+          {
+            id: "3",
+            name: "Khoảng giá",
+            type: "price",
+            active: true,
+            minValue: 0,
+            maxValue: 100000000,
+          },
+          {
+            id: "4",
+            name: "Thông số kỹ thuật",
+            type: "specification",
+            active: true,
+          },
           { id: "5", name: "Thẻ", type: "tag", active: true },
         ];
         setCriteria(defaultCriteria);
@@ -118,9 +131,11 @@ const FilterCriteria: React.FC = () => {
 
   const handleSave = () => {
     const updated = editingCriterion
-      ? criteria.map((c) => (c.id === editingCriterion.id ? { ...formData, id: c.id } : c))
+      ? criteria.map((c) =>
+          c.id === editingCriterion.id ? { ...formData, id: c.id } : c
+        )
       : [...criteria, { ...formData, id: Date.now().toString() }];
-    
+
     setCriteria(updated);
     localStorage.setItem("filterCriteria", JSON.stringify(updated));
     handleCloseDialog();
@@ -200,16 +215,25 @@ const FilterCriteria: React.FC = () => {
                     <TableRow key={criterion.id}>
                       <TableCell>{criterion.name}</TableCell>
                       <TableCell>
-                        <Chip label={getTypeLabel(criterion.type)} size="small" />
+                        <Chip
+                          label={getTypeLabel(criterion.type)}
+                          size="small"
+                        />
                       </TableCell>
                       <TableCell>
                         {criterion.categoryId
-                          ? categories.find((c) => c.id === criterion.categoryId)?.name || "N/A"
+                          ? categories.find(
+                              (c) => c.id === criterion.categoryId
+                            )?.name || "N/A"
                           : "Tất cả"}
                       </TableCell>
                       <TableCell>
                         {criterion.active ? (
-                          <Chip label="Hoạt động" color="success" size="small" />
+                          <Chip
+                            label="Hoạt động"
+                            color="success"
+                            size="small"
+                          />
                         ) : (
                           <Chip label="Tắt" size="small" />
                         )}
@@ -251,7 +275,12 @@ const FilterCriteria: React.FC = () => {
       </Card>
 
       {/* Form Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+      <Dialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>
           {editingCriterion ? "Sửa tiêu chí" : "Thêm tiêu chí mới"}
         </DialogTitle>
@@ -260,7 +289,9 @@ const FilterCriteria: React.FC = () => {
             <TextField
               label="Tên tiêu chí"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
               fullWidth
               required
             />
@@ -309,7 +340,10 @@ const FilterCriteria: React.FC = () => {
                   type="number"
                   value={formData.minValue || 0}
                   onChange={(e) =>
-                    setFormData({ ...formData, minValue: Number(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      minValue: Number(e.target.value),
+                    })
                   }
                   fullWidth
                 />
@@ -318,7 +352,10 @@ const FilterCriteria: React.FC = () => {
                   type="number"
                   value={formData.maxValue || 0}
                   onChange={(e) =>
-                    setFormData({ ...formData, maxValue: Number(e.target.value) })
+                    setFormData({
+                      ...formData,
+                      maxValue: Number(e.target.value),
+                    })
                   }
                   fullWidth
                 />
@@ -338,7 +375,11 @@ const FilterCriteria: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Hủy</Button>
-          <Button onClick={handleSave} variant="contained" disabled={!formData.name}>
+          <Button
+            onClick={handleSave}
+            variant="contained"
+            disabled={!formData.name}
+          >
             {editingCriterion ? "Cập nhật" : "Thêm"}
           </Button>
         </DialogActions>
@@ -359,4 +400,3 @@ const FilterCriteria: React.FC = () => {
 };
 
 export default FilterCriteria;
-

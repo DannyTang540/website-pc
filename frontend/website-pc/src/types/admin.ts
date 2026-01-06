@@ -1,4 +1,3 @@
-import type { Category } from "./category";
 import type { Product as BaseProduct } from "./product";
 export interface ProductSpecification {
   id?: string;
@@ -7,7 +6,7 @@ export interface ProductSpecification {
   productId?: string;
 }
 
-export interface Product extends Omit<BaseProduct, 'specifications'> {
+export interface Product extends Omit<BaseProduct, "specifications"> {
   // Map specs to specifications for backward compatibility
   specifications: Record<string, any> | any[];
   // Alias specs to specifications for form compatibility
