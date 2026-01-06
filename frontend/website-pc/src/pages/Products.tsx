@@ -301,6 +301,28 @@ const Products: React.FC = () => {
     return Number.isFinite(asNumber) ? asNumber : 0;
   };
 
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value
+    );
+
+  const handleViewAllCategory = (group: CategoryGroup) => {
+    if (group.category === "__uncategorized__") return;
+
+    // If we already filtered to a category, don't navigate redundantly
+    if (selectedCategoryId && isUuid(group.category)) {
+      if (selectedCategoryId === group.category) return;
+    }
+
+    if (isUuid(group.category)) {
+      navigate(`/product?categoryId=${encodeURIComponent(group.category)}`);
+      return;
+    }
+
+    // Fallback: use name/slug in `category` param (backend + frontend can resolve)
+    navigate(`/product?category=${encodeURIComponent(group.title)}`);
+  };
+
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -409,17 +431,27 @@ const Products: React.FC = () => {
                   <Box
                     sx={{
                       display: "flex",
+                      flexWrap: "wrap",
                       gap: 3,
-                      overflowX: "auto",
-                      pb: 1,
                     }}
                   >
                     {group.products.map((product) => (
                       <Box
                         key={product.id}
                         sx={{
-                          flex: "0 0 260px",
-                          maxWidth: 260,
+                          flexGrow: 1,
+                          flexBasis: {
+                            xs: "100%",
+                            sm: "calc(50% - 24px)",
+                            md: "calc(33.333% - 24px)",
+                            lg: "calc(25% - 24px)",
+                          },
+                          maxWidth: {
+                            xs: "100%",
+                            sm: "calc(50% - 24px)",
+                            md: "calc(33.333% - 24px)",
+                            lg: "calc(25% - 24px)",
+                          },
                         }}
                       >
                         <Card
@@ -628,6 +660,19 @@ const Products: React.FC = () => {
                       </Box>
                     ))}
                   </Box>
+
+                  {!selectedCategoryId &&
+                    group.category !== "__uncategorized__" && (
+                      <Box sx={{ mt: 3, textAlign: "center" }}>
+                        <Button
+                          variant="text"
+                          color="primary"
+                          onClick={() => handleViewAllCategory(group)}
+                        >
+                          Xem tất cả
+                        </Button>
+                      </Box>
+                    )}
                 </Box>
               </Paper>
             </Fade>
