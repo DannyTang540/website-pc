@@ -188,7 +188,9 @@ const Checkout: React.FC = () => {
     setShowSavedAddresses(false);
   };
 
-  const handleShippingInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleShippingInfoChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setShippingInfo((prev) => ({
       ...prev,
@@ -265,11 +267,13 @@ const Checkout: React.FC = () => {
   const isStepValid = () => {
     switch (activeStep) {
       case 0:
-        return (
-          shippingInfo.fullName && shippingInfo.phone && shippingInfo.address
+        return Boolean(
+          shippingInfo.fullName?.trim() &&
+            shippingInfo.phone?.trim() &&
+            shippingInfo.address?.trim()
         );
       case 1:
-        return paymentMethod;
+        return Boolean(paymentMethod);
       case 2:
         return true;
       default:
@@ -487,6 +491,7 @@ const Checkout: React.FC = () => {
                         name="fullName"
                         value={shippingInfo.fullName}
                         onChange={handleShippingInfoChange}
+                        onBlur={handleShippingInfoChange}
                         sx={{
                           "& .MuiOutlinedInput-root": {
                             borderRadius: 2,
@@ -508,6 +513,7 @@ const Checkout: React.FC = () => {
                           name="phone"
                           value={shippingInfo.phone}
                           onChange={handleShippingInfoChange}
+                          onBlur={handleShippingInfoChange}
                           sx={{
                             "& .MuiOutlinedInput-root": {
                               borderRadius: 2,
@@ -521,6 +527,7 @@ const Checkout: React.FC = () => {
                           type="email"
                           value={shippingInfo.email}
                           onChange={handleShippingInfoChange}
+                          onBlur={handleShippingInfoChange}
                           sx={{
                             "& .MuiOutlinedInput-root": {
                               borderRadius: 2,
@@ -536,6 +543,7 @@ const Checkout: React.FC = () => {
                         name="address"
                         value={shippingInfo.address}
                         onChange={handleShippingInfoChange}
+                        onBlur={handleShippingInfoChange}
                         sx={{
                           "& .MuiOutlinedInput-root": {
                             borderRadius: 2,
@@ -559,6 +567,7 @@ const Checkout: React.FC = () => {
                           name="city"
                           value={shippingInfo.city}
                           onChange={handleShippingInfoChange}
+                          onBlur={handleShippingInfoChange}
                           sx={{
                             "& .MuiOutlinedInput-root": {
                               borderRadius: 2,
@@ -571,6 +580,7 @@ const Checkout: React.FC = () => {
                           name="district"
                           value={shippingInfo.district}
                           onChange={handleShippingInfoChange}
+                          onBlur={handleShippingInfoChange}
                           sx={{
                             "& .MuiOutlinedInput-root": {
                               borderRadius: 2,
@@ -583,6 +593,7 @@ const Checkout: React.FC = () => {
                           name="ward"
                           value={shippingInfo.ward}
                           onChange={handleShippingInfoChange}
+                          onBlur={handleShippingInfoChange}
                           sx={{
                             "& .MuiOutlinedInput-root": {
                               borderRadius: 2,
@@ -599,6 +610,7 @@ const Checkout: React.FC = () => {
                         rows={3}
                         value={shippingInfo.note}
                         onChange={handleShippingInfoChange}
+                        onBlur={handleShippingInfoChange}
                         placeholder="Ghi chú thêm về đơn hàng..."
                         sx={{
                           "& .MuiOutlinedInput-root": {
