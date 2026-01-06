@@ -66,19 +66,26 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
     try {
       setLoading(true);
       const response = await adminService.categories.getAll();
-      // Ensure response.data is an array and has the correct structure
-      let categoriesData = [];
+      // Backend may return either an array or a wrapped payload: { success, data }
+      const payload: any = response?.data;
+      const data = Array.isArray(payload) ? payload : payload?.data;
 
-      if (response && response.data && Array.isArray(response.data)) {
-        categoriesData = response.data.map((cat) => ({
-          id: cat.id,
-          name: cat.name,
-          description: cat.description || "",
-          parentId: cat.parentId || null,
-          status: cat.status || "active",
-          subcategories: cat.subcategories || [],
-        }));
-      }
+      const categoriesData: Category[] = Array.isArray(data)
+        ? data
+            .map((cat: any) => {
+              const id = cat?.id ?? cat?._id;
+              if (!id) return null;
+              return {
+                id: String(id),
+                name: cat?.name ?? "",
+                description: cat?.description ?? "",
+                parentId: cat?.parentId ?? cat?.parent_id ?? null,
+                status: cat?.status ?? "active",
+                subcategories: cat?.subcategories ?? [],
+              } as Category;
+            })
+            .filter(Boolean)
+        : [];
 
       console.log("Loaded categories:", categoriesData);
       setCategories(categoriesData);
@@ -111,13 +118,17 @@ const CategoryForm: React.FC<CategoryFormProps> = ({
       let savedCategory: Category;
 
       if (category?.id) {
-        const response = await adminService.categories.update(
-          category.id,
-          formData
-        );
+        const response = await adminService.categories.update(category.id, {
+          ...formData,
+          parentId: formData.parentId || "",
+        });
         savedCategory = response.data;
       } else {
-        const payload = { ...formData, slug: generateSlug(formData.name) };
+        const payload = {
+          ...formData,
+          slug: generateSlug(formData.name),
+          parentId: formData.parentId || "",
+        };
         const response = await adminService.categories.create(payload);
         savedCategory = response.data;
       }

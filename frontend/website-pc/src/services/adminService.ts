@@ -123,19 +123,11 @@ export const adminService = {
     },
     update: async (id: string, data: any, isFormData = false) => {
       try {
-        let transformedData = data;
+        // Backend expects camelCase keys (name, slug, description, parentId, status)
+        const body = data;
+        console.log("📤 Sending data to server:", body);
 
-        if (!isFormData) {
-          // Convert camelCase to snake_case for all fields
-          transformedData = Object.entries(data).reduce((acc, [key, value]) => {
-            const snakeKey = key.replace(/([A-Z])/g, "_$1").toLowerCase();
-            return { ...acc, [snakeKey]: value };
-          }, {});
-        }
-
-        console.log("📤 Sending data to server:", transformedData);
-
-        const response = await api.put(`/categories/${id}`, transformedData, {
+        const response = await api.put(`/categories/${id}`, body, {
           headers: isFormData
             ? { "Content-Type": "multipart/form-data" }
             : { "Content-Type": "application/json" },
