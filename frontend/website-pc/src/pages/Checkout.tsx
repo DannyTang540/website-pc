@@ -35,6 +35,7 @@ import {
 import { CartContext } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
 import OrderSummary from "../components/OrderSummary";
+import { api } from "../services/api";
 // Helper function to get full name from user object
 const getFullName = (user: {
   firstName?: string;
@@ -76,23 +77,23 @@ const Checkout: React.FC = () => {
       if (user?.id) {
         try {
           // Fetch user's addresses from the backend
-          const response = await fetch(
-            `${
-              import.meta.env.VITE_API_URL || "http://localhost:5000/api"
-            }/user/addresses`,
-            {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("token")}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
+          const response = await api.get("/user/addresses", {
+            // We authenticate via Bearer token; cookies are not required
+            withCredentials: false,
+            validateStatus: (s) => s < 500,
+          });
 
-          if (!response.ok) {
+          if (response.status !== 200) {
             throw new Error("Không thể tải địa chỉ giao hàng");
           }
 
-          const addresses = await response.json();
+          const raw = response.data;
+          const addresses: Address[] = Array.isArray(raw)
+            ? raw
+            : Array.isArray(raw?.data)
+            ? raw.data
+            : [];
+
           setSavedAddresses(addresses);
 
           // Set default address if available
@@ -219,7 +220,8 @@ const Checkout: React.FC = () => {
         phone: shippingInfo.phone,
         paymentMethod,
         items: cartItems.map((item) => ({
-          productId: item.id,
+          // cartItems.id is cart-item id; backend expects productId
+          productId: (item as any).productId ?? item.id,
           quantity: item.quantity,
           price: item.price,
           name: item.name,
@@ -228,24 +230,18 @@ const Checkout: React.FC = () => {
       };
 
       // Make API call to create order
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/orders`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: JSON.stringify(orderData),
-        }
-      );
+      const response = await api.post("/orders", orderData, {
+        withCredentials: false,
+        validateStatus: (s) => s < 500,
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Không thể tạo đơn hàng");
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(
+          (response.data as any)?.message || "Không thể tạo đơn hàng"
+        );
       }
 
-      const result = await response.json();
+      const result: any = response.data;
 
       // Only clear cart if order was created successfully
       clearCart();

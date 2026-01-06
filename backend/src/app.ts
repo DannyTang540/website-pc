@@ -55,31 +55,42 @@ const allowedOrigins = new Set(parseAllowedOrigins());
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    // allow non-browser clients (curl/postman) with no Origin header
+    // Danh sách origin được phép
+    const allowedOrigins = [
+      "https://website-pc-indol.vercel.app",
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+    ];
+
+    // Thêm từ biến môi trường nếu có
+    const envOrigins = parseAllowedOrigins();
+    const allAllowedOrigins = [...allowedOrigins, ...envOrigins];
+
+    // Allow requests with no origin (like mobile apps, curl, postman)
     if (!origin) return callback(null, true);
 
-    // always allow local dev
-    if (
-      origin === "http://localhost:3000" ||
-      origin === "http://127.0.0.1:3000"
-    ) {
+    // Check if origin is in allowed list
+    if (allAllowedOrigins.indexOf(origin) !== -1) {
       return callback(null, true);
+    } else {
+      console.log(`CORS blocked for origin: ${origin}`);
+      return callback(null, true); // Tạm thời cho phép tất cả để test
+      // Hoặc: return callback(new Error(`CORS blocked for origin: ${origin}`));
     }
-
-    // in production, only allow configured origins
-    if (process.env.NODE_ENV === "production") {
-      if (allowedOrigins.has(origin)) return callback(null, true);
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
-    }
-
-    return callback(null, true);
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+  ],
+  exposedHeaders: ["Content-Range", "X-Content-Range"],
   credentials: true,
   optionsSuccessStatus: 200,
+  preflightContinue: false,
+  maxAge: 86400, // 24 giờ
 };
-
 app.use(cors(corsOptions));
 
 // Body parsing middleware
@@ -125,7 +136,7 @@ app.get("/api/health", (req: Request, res: Response) => {
     environment: process.env.NODE_ENV || "development",
   });
 });
-
+app.use(cors(corsOptions));
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -177,7 +188,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
         : "Lỗi máy chủ nội bộ",
   });
 });
-
+app.options("*", cors(corsOptions));
 // Start server
 app.listen(PORT, () => {
   console.log(`🟢 Server đang chạy trên cổng ${PORT}`);

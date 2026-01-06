@@ -12,6 +12,7 @@ import { cartService } from "../services/cartService";
 // Cập nhật interface CartItem
 export interface CartItem {
   id: string;
+  productId?: string; // id sản phẩm (khác với cart item id)
   name: string; // Thêm thuộc tính name
   price: number; // Thêm thuộc tính price
   quantity: number;
