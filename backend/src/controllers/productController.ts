@@ -2,6 +2,7 @@
 import { Request, Response } from "express";
 import { ProductModel, Product } from "../models/Product";
 import ComponentModel from "../models/Component";
+import { CategoryModel } from "../models/Category";
 import slugify from "slugify";
 import fs from "fs";
 import path from "path";
@@ -365,13 +366,46 @@ export async function getProducts(req: Request, res: Response) {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const category = req.query.category as string | undefined;
+    const categoryId = req.query.categoryId as string | undefined;
+
+    const looksLikeUuid = (value: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        value
+      );
+
+    let effectiveCategoryId: string | undefined = undefined;
+    if (categoryId) {
+      effectiveCategoryId = categoryId;
+    } else if (category) {
+      if (looksLikeUuid(category)) {
+        effectiveCategoryId = category;
+      } else {
+        const bySlug = await CategoryModel.findBySlug(category);
+        if (bySlug?.id) {
+          effectiveCategoryId = bySlug.id;
+        } else {
+          // Fallback: try match by name
+          try {
+            const db = require("../database/database").default;
+            const [rows] = await db.execute(
+              `SELECT id FROM categories WHERE name = ? LIMIT 1`,
+              [category]
+            );
+            const id = (rows as any[])[0]?.id;
+            if (id) effectiveCategoryId = id;
+          } catch (e) {
+            // ignore name lookup errors
+          }
+        }
+      }
+    }
 
     // Build filter object
     const filter: any = {};
 
     // Add category filter if provided
-    if (category) {
-      filter.categoryId = category;
+    if (effectiveCategoryId) {
+      filter.categoryId = effectiveCategoryId;
     }
 
     const { products, total } = await ProductModel.findAll(filter, page, limit);

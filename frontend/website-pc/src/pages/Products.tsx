@@ -55,23 +55,74 @@ const Products: React.FC = () => {
   const [categoryNameById, setCategoryNameById] = useState<
     Record<string, string>
   >({});
+  const [categoryIdBySlug, setCategoryIdBySlug] = useState<
+    Record<string, string>
+  >({});
+  const [categoryIdByNameLower, setCategoryIdByNameLower] = useState<
+    Record<string, string>
+  >({});
   const [searchParams] = useSearchParams();
+  const categoryIdParam = searchParams.get("categoryId");
   const categoryParam = searchParams.get("category");
+
+  const resolveCategoryId = (raw: string | null): string | null => {
+    if (!raw) return null;
+    const value = String(raw).trim();
+    if (!value) return null;
+
+    // Direct id
+    if (categoryNameById[value]) return value;
+
+    // Slug
+    const bySlug = categoryIdBySlug[value.toLowerCase()];
+    if (bySlug) return bySlug;
+
+    // Name
+    const byName = categoryIdByNameLower[value.toLowerCase()];
+    if (byName) return byName;
+
+    // Looks like UUID -> treat as id even if map isn't loaded yet
+    if (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        value
+      )
+    ) {
+      return value;
+    }
+
+    return null;
+  };
+
+  const selectedCategoryId =
+    categoryIdParam || resolveCategoryId(categoryParam) || null;
 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const categories = await categoryService.getCategories();
         const map: Record<string, string> = {};
+        const slugToId: Record<string, string> = {};
+        const nameToId: Record<string, string> = {};
         (categories || []).forEach((c: any) => {
           const id = c?.id ?? c?._id;
           const name = c?.name;
-          if (id && name) map[String(id)] = String(name);
+          const slug = c?.slug;
+          if (id && name) {
+            map[String(id)] = String(name);
+            nameToId[String(name).toLowerCase()] = String(id);
+          }
+          if (id && slug) {
+            slugToId[String(slug).toLowerCase()] = String(id);
+          }
         });
         setCategoryNameById(map);
+        setCategoryIdBySlug(slugToId);
+        setCategoryIdByNameLower(nameToId);
       } catch {
         // Non-blocking: products can still render with fallback category strings.
         setCategoryNameById({});
+        setCategoryIdBySlug({});
+        setCategoryIdByNameLower({});
       }
     };
 
@@ -92,9 +143,10 @@ const Products: React.FC = () => {
         };
 
         // Add category filter if specified in URL
-        if (categoryParam) {
-          // UI links pass category name via ?category=...
-          // Backend/productService supports filtering by category name via `category`.
+        if (selectedCategoryId) {
+          filter.categoryId = selectedCategoryId;
+        } else if (categoryParam) {
+          // Fallback for older links that pass slug/name; backend will try to resolve.
           filter.category = categoryParam;
         }
 
@@ -130,7 +182,7 @@ const Products: React.FC = () => {
         setProducts(fetchedProducts);
 
         // If there's a category parameter, expand that category
-        if (categoryParam) {
+        if (categoryParam || categoryIdParam) {
           const firstProduct = fetchedProducts[0];
           if (firstProduct?.category) {
             setExpandedCategory(firstProduct.category);
@@ -154,7 +206,7 @@ const Products: React.FC = () => {
     };
 
     fetchProducts();
-  }, [categoryParam]);
+  }, [categoryParam, categoryIdParam, selectedCategoryId]);
 
   // Format price to VND
   const formatPrice = (price: number): string => {
@@ -176,13 +228,20 @@ const Products: React.FC = () => {
 
     // Filter products based on search term
     const filteredProducts = products.filter((product) => {
-      // If there's a category filter, match by category name or id
-      if (
-        categoryParam &&
-        product.categoryId !== categoryParam &&
-        product.category !== categoryParam
-      ) {
-        return false;
+      // If there's a category filter, match by category id, slug/name (resolved), or name
+      if (categoryParam || categoryIdParam) {
+        const productCategoryId = product.categoryId || "";
+        const productCategoryName =
+          categoryNameById[productCategoryId] || product.category || "";
+
+        if (selectedCategoryId) {
+          if (productCategoryId !== selectedCategoryId) return false;
+        } else if (categoryParam) {
+          const needle = String(categoryParam).toLowerCase();
+          const hay = String(productCategoryName).toLowerCase();
+          if (hay !== needle && productCategoryId !== categoryParam)
+            return false;
+        }
       }
 
       // If no search term, include all (filtered by category above)
@@ -226,7 +285,14 @@ const Products: React.FC = () => {
 
     // Sort categories alphabetically
     return groups.sort((a, b) => a.category.localeCompare(b.category));
-  }, [products, searchTerm, categoryParam]);
+  }, [
+    products,
+    searchTerm,
+    categoryParam,
+    categoryIdParam,
+    selectedCategoryId,
+    categoryNameById,
+  ]);
 
   const isFavorite = (productId: string) => {
     return favorites?.some((fav) => fav?.id === productId) || false;
