@@ -6,6 +6,12 @@ import type {
   InternalAxiosRequestConfig,
 } from "axios";
 
+const normalizeApiBaseUrl = (value: string): string => {
+  const trimmed = (value || "").trim().replace(/\/+$/, "");
+  if (!trimmed) return "http://localhost:5000/api";
+  return /\/api$/i.test(trimmed) ? trimmed : `${trimmed}/api`;
+};
+
 // Extend AxiosRequestConfig to include custom properties
 interface CustomRequestConfig extends AxiosRequestConfig {
   _retry?: boolean;
@@ -16,8 +22,8 @@ interface CustomRequestConfig extends AxiosRequestConfig {
 
 // Create axios instance with default config
 const api: AxiosInstance = axios.create({
-  // Default to port 3000 to match backend dist/start defaults; override with VITE_API_URL
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
+  // Always target the backend API prefix
+  baseURL: normalizeApiBaseUrl(import.meta.env.VITE_API_URL),
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
@@ -59,9 +65,9 @@ api.interceptors.response.use(
 
         // Try to refresh the token
         const response = await axios.post(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:5000/api"
-          }/auth/refresh-token`,
+          `${normalizeApiBaseUrl(
+            import.meta.env.VITE_API_URL
+          )}/auth/refresh-token`,
           { refreshToken }
         );
 

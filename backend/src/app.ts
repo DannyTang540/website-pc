@@ -116,7 +116,24 @@ const corsOptions: cors.CorsOptions = {
   preflightContinue: false,
   maxAge: 86400, // 24 giờ
 };
-app.use(cors(corsOptions));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Cho phép requests không có origin (như mobile apps, curl)
+      if (!origin) return callback(null, true);
+
+      if (parseAllowedOrigins().indexOf(origin) === -1) {
+        const msg =
+          "The CORS policy for this site does not allow access from the specified Origin.";
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
@@ -176,6 +193,28 @@ app.use("/api/components", componentsRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/user", userRoutesSingle);
 app.use("/api/favorites", favoritesRoutes);
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "PC Store Backend API",
+    frontend: "Vercel",
+    endpoints: {
+      auth: {
+        register: "POST /auth/register",
+        login: "POST /auth/login",
+      },
+      products: "GET /api/products",
+      categories: "GET /api/categories",
+      banners: "GET /api/banners",
+    },
+  });
+});
+app.post("/auth/register", (req, res) => {
+  res.json({ message: "Register endpoint" });
+});
+app.post("/auth/login", (req, res) => {
+  res.json({ message: "Login endpoint" });
+});
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
