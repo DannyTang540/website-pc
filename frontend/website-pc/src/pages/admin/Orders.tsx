@@ -92,6 +92,41 @@ const AdminOrders: React.FC = () => {
     }
   };
 
+  const normalizeOrder = (raw: any): Order => {
+    const id = raw?.id ?? raw?._id ?? "";
+    return {
+      ...raw,
+      id: String(id),
+      userId: raw?.userId ?? raw?.user_id ?? "",
+      total: Number(raw?.total ?? 0),
+      status: (raw?.status ?? "pending") as Order["status"],
+      paymentStatus: (raw?.paymentStatus ??
+        raw?.payment_status ??
+        "pending") as "pending" | "paid" | "failed",
+      shippingAddress: raw?.shippingAddress ?? raw?.shipping_address,
+      paymentMethod: (raw?.paymentMethod ?? raw?.payment_method ?? "cod") as
+        | "cod"
+        | "banking"
+        | "momo"
+        | "vnpay",
+      createdAt: raw?.createdAt ?? raw?.created_at,
+      updatedAt: raw?.updatedAt ?? raw?.updated_at,
+      items:
+        raw?.items ??
+        raw?.orderItems ??
+        raw?.order_items ??
+        raw?.order_items_enriched ??
+        [],
+      orderItems:
+        raw?.orderItems ??
+        raw?.items ??
+        raw?.order_items ??
+        raw?.order_items_enriched,
+    } as Order;
+  };
+
+  const getOrderId = (o: any): string => String(o?.id ?? o?._id ?? "");
+
   const load = async () => {
     setLoading(true);
     try {
@@ -103,9 +138,10 @@ const AdminOrders: React.FC = () => {
       const body: any = res?.data ?? res;
       const data = body?.data ?? body;
 
-      const items: Order[] = Array.isArray(data)
+      const rawItems: any[] = Array.isArray(data)
         ? data
         : data?.data ?? data?.items ?? [];
+      const items: Order[] = (rawItems || []).map(normalizeOrder);
       const totalCount: number =
         data?.total ?? data?.pagination?.total ?? body?.total ?? items.length;
 
@@ -134,14 +170,16 @@ const AdminOrders: React.FC = () => {
   };
 
   const handleViewOrder = (order: Order) => {
-    setSelectedOrder(order);
-    setOrderItems(order.items ?? order.orderItems ?? []);
+    const normalized = normalizeOrder(order);
+    setSelectedOrder(normalized);
+    setOrderItems(normalized.items ?? normalized.orderItems ?? []);
     setOrderDetailOpen(true);
   };
 
   const handleChangeStatus = (order: Order) => {
-    setSelectedOrder(order);
-    setNewStatus(order.status || "pending");
+    const normalized = normalizeOrder(order);
+    setSelectedOrder(normalized);
+    setNewStatus(normalized.status || "pending");
     setStatusChangeOpen(true);
   };
 
@@ -149,11 +187,24 @@ const AdminOrders: React.FC = () => {
     if (!selectedOrder) return;
     try {
       setLoading(true);
-      await adminService.orders.update(selectedOrder.id, { status: newStatus });
+      const id = getOrderId(selectedOrder);
+      if (!id || id === "undefined") {
+        toast.error("Không tìm thấy mã đơn hàng để cập nhật");
+        return;
+      }
+
+      await adminService.orders.updateStatus(id, newStatus);
       setStatusChangeOpen(false);
       load();
     } catch (err) {
       console.error("Update status failed", err);
+      const anyErr: any = err;
+      const message =
+        anyErr?.response?.data?.message ||
+        anyErr?.response?.data?.error ||
+        anyErr?.message ||
+        "Cập nhật trạng thái thất bại";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
