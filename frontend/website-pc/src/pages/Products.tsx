@@ -295,6 +295,12 @@ const Products: React.FC = () => {
     navigate(`/products/${product.slug}`);
   };
 
+  const getStockQuantity = (product: Product): number => {
+    const value = product.stockQuantity ?? product.stock ?? 0;
+    const asNumber = Number(value);
+    return Number.isFinite(asNumber) ? asNumber : 0;
+  };
+
   if (loading) {
     return (
       <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -378,39 +384,44 @@ const Products: React.FC = () => {
                     py: 2,
                     background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.secondary.light})`,
                     color: "white",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 2,
                   }}
                 >
                   <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-                    {group.title} ({group.products.length} sản phẩm)
+                    {group.title}
                   </Typography>
+                  <Chip
+                    label={`${group.products.length} sản phẩm`}
+                    size="small"
+                    sx={{
+                      color: "white",
+                      borderColor: "rgba(255,255,255,0.6)",
+                      backgroundColor: "rgba(255,255,255,0.15)",
+                    }}
+                    variant="outlined"
+                  />
                 </Box>
 
                 <Box sx={{ p: 3 }}>
                   <Box
                     sx={{
                       display: "flex",
-                      flexWrap: "wrap",
                       gap: 3,
-                      "& > *": {
-                        flex: "1 1 250px",
-                        maxWidth: "100%",
-                        "@media (min-width: 600px)": {
-                          flex: "1 1 calc(50% - 12px)",
-                          maxWidth: "calc(50% - 12px)",
-                        },
-                        "@media (min-width: 900px)": {
-                          flex: "1 1 calc(33.333% - 16px)",
-                          maxWidth: "calc(33.333% - 16px)",
-                        },
-                        "@media (min-width: 1200px)": {
-                          flex: "1 1 calc(20% - 16px)",
-                          maxWidth: "calc(20% - 16px)",
-                        },
-                      },
+                      overflowX: "auto",
+                      pb: 1,
                     }}
                   >
                     {group.products.map((product) => (
-                      <Box key={product.id}>
+                      <Box
+                        key={product.id}
+                        sx={{
+                          flex: "0 0 260px",
+                          maxWidth: 260,
+                        }}
+                      >
                         <Card
                           sx={{
                             height: "100%",
@@ -460,7 +471,7 @@ const Products: React.FC = () => {
                               height: 200,
                               objectFit: "contain",
                               transition: "transform 0.3s ease",
-                              backgroundColor: "#f5f5f5",
+                              backgroundColor: theme.palette.background.default,
                             }}
                           />
                           <CardContent sx={{ flexGrow: 1, p: 2 }}>
@@ -504,7 +515,7 @@ const Products: React.FC = () => {
                                 <Star
                                   sx={{
                                     fontSize: 16,
-                                    color: "#FFD700",
+                                    color: theme.palette.warning.main,
                                     mr: 0.5,
                                   }}
                                 />
@@ -553,20 +564,23 @@ const Products: React.FC = () => {
                                 mb: 2,
                               }}
                             >
+                              {(() => {
+                                const stockQty = getStockQuantity(product);
+                                const inStock =
+                                  product.inStock ?? Boolean(stockQty > 0);
+                                return (
                               <Chip
                                 label={
-                                  product.stock && product.stock > 0
-                                    ? `Còn hàng (${product.stock})`
+                                  inStock
+                                    ? `Còn hàng (${stockQty})`
                                     : "Hết hàng"
                                 }
-                                color={
-                                  product.stock && product.stock > 0
-                                    ? "success"
-                                    : "error"
-                                }
+                                color={inStock ? "success" : "error"}
                                 size="small"
                                 sx={{ fontSize: "0.7rem" }}
                               />
+                                );
+                              })()}
                             </Box>
                           </CardContent>
                           <Box
@@ -585,7 +599,7 @@ const Products: React.FC = () => {
                                 size="small"
                                 startIcon={<ShoppingCart />}
                                 onClick={() => handleAddToCart(product)}
-                                disabled={!product.stock || product.stock === 0}
+                                disabled={getStockQuantity(product) <= 0}
                                 sx={{ flex: 1, fontSize: "0.8rem" }}
                               >
                                 Thêm vào giỏ

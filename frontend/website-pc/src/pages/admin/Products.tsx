@@ -16,8 +16,10 @@ import ConfirmDialog from "../../components/admin/common/ComfirmDialog";
 import ProductForm from "../../components/admin/forms/ProductForm.tsx";
 import { adminService } from "../../services/adminService";
 import type { Product as AdminProduct } from "../../types/admin";
+import { useSearchParams } from "react-router-dom";
 
 const AdminProducts: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [loading, setLoading] = useState(false);
@@ -34,6 +36,16 @@ const AdminProducts: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [categories, setCategories] = useState<any[]>([]);
+
+  // Allow deep-linking from Categories page: /admin/products?categoryId=...
+  useEffect(() => {
+    const categoryId = searchParams.get("categoryId");
+    if (categoryId) {
+      setCategoryFilter(categoryId);
+      setPage(0);
+    }
+    // Only run when URL search params change
+  }, [searchParams]);
 
   // Hàm chuẩn hóa dữ liệu sản phẩm từ API
   // In pages/admin/Products.tsx

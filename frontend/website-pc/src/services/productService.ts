@@ -136,6 +136,10 @@ const normalizeProduct = (productData: any): Product => {
     category = productData.categoryId;
   }
 
+  const normalizedStockQuantity = Number(
+    productData.stockQuantity ?? productData.stock ?? 0
+  );
+
   // Trả về đối tượng Product đã chuẩn hóa
   return {
     id: productData.id || "",
@@ -152,8 +156,11 @@ const normalizeProduct = (productData: any): Product => {
     images: images,
     image: images[0], // Để tương thích với code cũ
     specifications: specifications,
-    inStock: Boolean(productData.inStock),
-    stockQuantity: productData.stockQuantity || productData.stock || 0,
+    inStock:
+      productData.inStock ??
+      productData.in_stock ??
+      Boolean(normalizedStockQuantity > 0),
+    stockQuantity: normalizedStockQuantity,
     featured: Boolean(productData.featured),
     slug: productData.slug || productData.id || "",
     tags: tags,

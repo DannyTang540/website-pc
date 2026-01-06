@@ -8,6 +8,7 @@ import {
   CardContent,
 } from "@mui/material";
 import { Add as AddIcon, Refresh as RefreshIcon } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 import DataTable from "../../components/admin/common/DataTable";
 import SearchBar from "../../components/admin/common/SearchBar";
 import type { Column } from "../../components/admin/common/DataTable";
@@ -17,6 +18,7 @@ import { adminService } from "../../services/adminService";
 import type { Category } from "../../types/category";
 
 const AdminCategories: React.FC = () => {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
@@ -116,6 +118,12 @@ const AdminCategories: React.FC = () => {
     { id: "status", label: "Trạng thái", minWidth: 120 },
   ];
 
+  const handleViewProducts = (cat: Category) => {
+    const id = (cat as any)?.id;
+    if (!id) return;
+    navigate(`/admin/products?categoryId=${encodeURIComponent(String(id))}`);
+  };
+
   const paged = categories.slice(
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
@@ -191,6 +199,7 @@ const AdminCategories: React.FC = () => {
           setRowsPerPage(r);
           setPage(0);
         }}
+        onView={handleViewProducts}
         onEdit={handleEdit}
         onDelete={handleDelete}
         loading={loading}
