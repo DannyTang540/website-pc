@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
+const getJwtSecret = () => process.env.JWT_SECRET;
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -14,6 +13,12 @@ export const authenticateToken = (
   res: Response,
   next: NextFunction
 ) => {
+  const jwtSecret = getJwtSecret();
+  if (!jwtSecret) {
+    console.error("Auth misconfigured: missing JWT_SECRET");
+    return res.status(500).json({ message: "Auth not configured" });
+  }
+
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
 
@@ -21,7 +26,7 @@ export const authenticateToken = (
     return res.status(401).json({ message: "Access token required" });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded: any) => {
+  jwt.verify(token, jwtSecret, (err, decoded: any) => {
     if (err) {
       return res.status(403).json({ message: "Invalid or expired token" });
     }

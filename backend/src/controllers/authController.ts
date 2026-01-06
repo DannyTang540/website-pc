@@ -3,23 +3,50 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { UserModel } from "../models/User";
 
-const JWT_SECRET = process.env.JWT_SECRET!;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
+const getJwtSecrets = () => {
+  const jwtSecret = process.env.JWT_SECRET;
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
+  return { jwtSecret, jwtRefreshSecret };
+};
+
+const toSafeErrorLog = (error: any) => ({
+  message: error?.message,
+  code: error?.code,
+  errno: error?.errno,
+  sqlState: error?.sqlState,
+  sqlMessage: error?.sqlMessage,
+  stack: error?.stack,
+});
 
 // Đăng nhập người dùng
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
   try {
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
+    }
+
+    const { jwtSecret, jwtRefreshSecret } = getJwtSecrets();
+    if (!jwtSecret || !jwtRefreshSecret) {
+      console.error("Auth misconfigured: missing JWT secrets", {
+        hasJwtSecret: !!jwtSecret,
+        hasJwtRefreshSecret: !!jwtRefreshSecret,
+      });
+      return res.status(500).json({ message: "Auth not configured" });
+    }
+
     const user = await UserModel.findByEmail(email);
     if (!user || !(await UserModel.comparePassword(password, user.password))) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, {
       expiresIn: "1h",
     });
 
-    const refreshToken = jwt.sign({ id: user.id }, JWT_REFRESH_SECRET, {
+    const refreshToken = jwt.sign({ id: user.id }, jwtRefreshSecret, {
       expiresIn: "7d",
     });
 
@@ -46,7 +73,7 @@ export const login = async (req: Request, res: Response) => {
       refreshToken,
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Login error:", toSafeErrorLog(error));
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -56,6 +83,25 @@ export const register = async (req: Request, res: Response) => {
   const { email, password, firstName, lastName, phone } = req.body;
 
   try {
+    if (
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      typeof firstName !== "string" ||
+      typeof lastName !== "string" ||
+      typeof phone !== "string"
+    ) {
+      return res.status(400).json({ message: "Invalid registration data" });
+    }
+
+    const { jwtSecret, jwtRefreshSecret } = getJwtSecrets();
+    if (!jwtSecret || !jwtRefreshSecret) {
+      console.error("Auth misconfigured: missing JWT secrets", {
+        hasJwtSecret: !!jwtSecret,
+        hasJwtRefreshSecret: !!jwtRefreshSecret,
+      });
+      return res.status(500).json({ message: "Auth not configured" });
+    }
+
     const existingUser = await UserModel.findByEmail(email);
     if (existingUser) {
       return res.status(400).json({ message: "Email already in use" });
@@ -77,11 +123,11 @@ export const register = async (req: Request, res: Response) => {
     }
 
     // Tạo tokens
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, {
       expiresIn: "1h",
     });
 
-    const refreshToken = jwt.sign({ id: user.id }, JWT_REFRESH_SECRET, {
+    const refreshToken = jwt.sign({ id: user.id }, jwtRefreshSecret, {
       expiresIn: "7d",
     });
 
@@ -109,7 +155,7 @@ export const register = async (req: Request, res: Response) => {
       refreshToken,
     });
   } catch (error) {
-    console.error("Register error:", error);
+    console.error("Register error:", toSafeErrorLog(error));
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -141,7 +187,7 @@ export const getCurrentUser = async (req: Request, res: Response) => {
       updatedAt: user.updatedAt,
     });
   } catch (error) {
-    console.error("Get current user error:", error);
+    console.error("Get current user error:", toSafeErrorLog(error));
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -158,20 +204,29 @@ export const refreshToken = async (req: Request, res: Response) => {
     return res.status(400).json({ message: "Refresh token required" });
 
   try {
-    const payload: any = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as any;
+    const { jwtSecret, jwtRefreshSecret } = getJwtSecrets();
+    if (!jwtSecret || !jwtRefreshSecret) {
+      console.error("Auth misconfigured: missing JWT secrets", {
+        hasJwtSecret: !!jwtSecret,
+        hasJwtRefreshSecret: !!jwtRefreshSecret,
+      });
+      return res.status(500).json({ message: "Auth not configured" });
+    }
+
+    const payload: any = jwt.verify(refreshToken, jwtRefreshSecret) as any;
     const user = await UserModel.findById(payload.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: user.id, role: user.role }, jwtSecret, {
       expiresIn: "1h",
     });
-    const newRefresh = jwt.sign({ id: user.id }, JWT_REFRESH_SECRET, {
+    const newRefresh = jwt.sign({ id: user.id }, jwtRefreshSecret, {
       expiresIn: "7d",
     });
 
     res.json({ token, refreshToken: newRefresh });
   } catch (error) {
-    console.error("Refresh token error:", error);
+    console.error("Refresh token error:", toSafeErrorLog(error));
     return res.status(403).json({ message: "Invalid refresh token" });
   }
 };
@@ -192,7 +247,7 @@ export const updateProfile = async (req: Request, res: Response) => {
     const user = await UserModel.findById(userId);
     res.json({ success: true, data: user });
   } catch (error) {
-    console.error("Update profile error:", error);
+    console.error("Update profile error:", toSafeErrorLog(error));
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -220,7 +275,7 @@ export const changePassword = async (req: Request, res: Response) => {
       return res.status(500).json({ message: "Failed to update password" });
     res.json({ success: true, message: "Password changed successfully" });
   } catch (error) {
-    console.error("Change password error:", error);
+    console.error("Change password error:", toSafeErrorLog(error));
     res.status(500).json({ message: "Server error" });
   }
 };
