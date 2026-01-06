@@ -31,6 +31,7 @@ import {
   Visibility,
 } from "@mui/icons-material";
 import { getFirstProductImage } from "../utils/imageUtils";
+import { categoryService } from "../services/categoryService";
 
 interface CategoryGroup {
   category: string;
@@ -51,8 +52,31 @@ const Products: React.FC = () => {
   );
   const [visibleCategories, setVisibleCategories] = useState(5);
   const [error, setError] = useState<string | null>(null);
+  const [categoryNameById, setCategoryNameById] = useState<
+    Record<string, string>
+  >({});
   const [searchParams] = useSearchParams();
   const categoryParam = searchParams.get("category");
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const categories = await categoryService.getCategories();
+        const map: Record<string, string> = {};
+        (categories || []).forEach((c: any) => {
+          const id = c?.id ?? c?._id;
+          const name = c?.name;
+          if (id && name) map[String(id)] = String(name);
+        });
+        setCategoryNameById(map);
+      } catch {
+        // Non-blocking: products can still render with fallback category strings.
+        setCategoryNameById({});
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -337,7 +361,8 @@ const Products: React.FC = () => {
                     }}
                   >
                     <Typography variant="h5" sx={{ fontWeight: "bold" }}>
-                      {group.category} ({group.products.length} sản phẩm)
+                      {(categoryNameById[group.category] || group.category) +
+                        ` (${group.products.length} sản phẩm)`}
                     </Typography>
                   </AccordionSummary>
                   <AccordionDetails sx={{ p: 3 }}>
