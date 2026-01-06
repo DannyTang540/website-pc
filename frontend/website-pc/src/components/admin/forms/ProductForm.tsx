@@ -58,7 +58,7 @@ interface ProductFormProps {
     createdAt?: string;
     updatedAt?: string;
   } | null;
-  onSave: (product: any) => Promise<void>; // Update this with proper type if needed
+  onSave: (data: FormData) => Promise<void> | void;
   onCancel: () => void;
 }
 
@@ -348,16 +348,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         }
       }
 
-      // Send the request using your existing service
-      if (product?.id) {
-        // For update
-        await adminService.products.update(product.id, formDataToSend);
-        onSave("Cập nhật sản phẩm thành công");
-      } else {
-        // For create
-        await adminService.products.create(formDataToSend);
-        onSave("Tạo sản phẩm thành công");
-      }
+      await onSave(formDataToSend);
       onCancel();
     } catch (err: any) {
       console.error("Error saving product:", err);

@@ -219,24 +219,31 @@ const AdminProducts: React.FC = () => {
   };
 
   // pages/admin/Products.tsx
-  const handleSave = async (formData: any) => {
+  const handleSave = async (payload: any) => {
     try {
-      // Prepare data for API
-      const dataToSave = {
-        ...formData,
-        // Map specs back to specifications if needed
-        specifications: formData.specs || formData.specifications || {},
-      };
-
-      // Remove the specs alias before sending to API
-      delete dataToSave.specs;
-
-      if (editing?.id) {
-        await adminService.products.update(editing.id, dataToSave);
-        toast.success("Cập nhật sản phẩm thành công");
+      if (payload instanceof FormData) {
+        if (editing?.id) {
+          await adminService.products.update(editing.id, payload);
+          toast.success("Cập nhật sản phẩm thành công");
+        } else {
+          await adminService.products.create(payload);
+          toast.success("Thêm sản phẩm thành công");
+        }
       } else {
-        await adminService.products.create(dataToSave);
-        toast.success("Thêm sản phẩm thành công");
+        // Legacy fallback: plain object payload
+        const dataToSave = {
+          ...payload,
+          specifications: payload?.specs || payload?.specifications || {},
+        };
+        delete (dataToSave as any).specs;
+
+        if (editing?.id) {
+          await adminService.products.update(editing.id, dataToSave);
+          toast.success("Cập nhật sản phẩm thành công");
+        } else {
+          await adminService.products.create(dataToSave);
+          toast.success("Thêm sản phẩm thành công");
+        }
       }
 
       // Refresh the list
