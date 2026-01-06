@@ -47,11 +47,25 @@ const uploadDir = createUploadDirs();
 // Trong upload.ts
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, "../../public/uploads/products");
-    // Đảm bảo thư mục tồn tại
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
+    // Always write into the same uploads directory that the app serves:
+    // process.cwd()/public/uploads
+    let subDir = "general";
+
+    // Route/field-based routing for common cases
+    if (file.fieldname === "images" || req.baseUrl?.includes("/products")) {
+      subDir = "products";
+    } else if (
+      req.baseUrl?.includes("/banners") ||
+      file.fieldname === "banner"
+    ) {
+      subDir = "banners";
+    } else if (req.baseUrl?.includes("/users") || file.fieldname === "avatar") {
+      subDir = "users";
     }
+
+    const uploadPath = path.join(uploadDir, subDir);
+    if (!fs.existsSync(uploadPath))
+      fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
