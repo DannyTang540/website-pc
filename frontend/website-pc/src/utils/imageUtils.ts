@@ -1,13 +1,23 @@
 // Base URL for backend static files
 const getBaseUrl = (): string => {
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-  // Remove /api suffix to get base URL for static files
-  const baseUrl = apiUrl.replace(/\/api\/?$/, "");
+  const apiUrlRaw = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-  // In development with Vite proxy, we can use relative URLs
-  // This avoids CORS issues when accessing /uploads
+  // Remove trailing /api to get base URL for static files
+  const baseUrl = apiUrlRaw.replace(/\/api\/?$/, "");
+
+  // In development, prefer Vite proxy for localhost to avoid CORS,
+  // but if VITE_API_URL points to a remote host (Railway/Vercel),
+  // we must use absolute URLs so images load correctly.
   if (import.meta.env.DEV) {
-    return ""; // Use relative URL in development
+    const isAbsoluteHttp = /^https?:\/\//i.test(apiUrlRaw);
+    const isLocalhost =
+      /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(apiUrlRaw);
+
+    if (isAbsoluteHttp && !isLocalhost) {
+      return baseUrl;
+    }
+
+    return "";
   }
 
   return baseUrl;
@@ -52,9 +62,28 @@ export const normalizeImageUrl = (image: any): string => {
       return image;
     }
 
+    // Normalize common stored paths to match backend static mount.
+    // Backend serves files at /uploads (from public/uploads).
+    let normalizedPath = image
+      .replace(/\\/g, "/")
+      .replace(/^\.\//, "")
+      .replace(/^public\//, "")
+      .replace(/^backend\/public\//, "")
+      .replace(/^frontend\/website-pc\/public\//, "");
+
+    // If path still contains '/public/uploads', strip the '/public'
+    normalizedPath = normalizedPath.replace(/\/public\/uploads\//, "/uploads/");
+
+    // Ensure it starts with /uploads when it points into uploads
+    if (normalizedPath.startsWith("uploads/")) {
+      normalizedPath = `/${normalizedPath}`;
+    }
+
     // Local path - add base URL
     const baseUrl = getBaseUrl();
-    const path = image.startsWith("/") ? image : `/${image}`;
+    const path = normalizedPath.startsWith("/")
+      ? normalizedPath
+      : `/${normalizedPath}`;
     return `${baseUrl}${path}`;
   }
 
