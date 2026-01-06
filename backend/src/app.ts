@@ -188,7 +188,9 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
         : "Lỗi máy chủ nội bộ",
   });
 });
-app.options("*", cors(corsOptions));
+// Express 5 (path-to-regexp v6) doesn't accept "*" as a path pattern.
+// Use a RegExp to match all routes for preflight.
+app.options(/.*/, cors(corsOptions));
 // Start server
 app.listen(PORT, () => {
   console.log(`🟢 Server đang chạy trên cổng ${PORT}`);
