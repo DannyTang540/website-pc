@@ -2,6 +2,16 @@ import { Request, Response } from "express";
 import pool from "../database/database";
 import { v4 as uuidv4 } from "uuid";
 
+const isUnknownColumnError = (error: any, column?: string) => {
+  const message = String(error?.sqlMessage || error?.message || "");
+  const code = String(error?.code || "");
+  const unknown =
+    code === "ER_BAD_FIELD_ERROR" || /Unknown column/i.test(message);
+  if (!unknown) return false;
+  if (!column) return true;
+  return message.includes(`'${column}'`) || message.includes(column);
+};
+
 type EnrichedOrderItem = {
   productId: string;
   quantity: number;
@@ -252,10 +262,24 @@ export const getUserOrders = async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     if (!userId)
       return res.status(401).json({ success: false, message: "Unauthorized" });
-    const [rows] = await pool.execute(
-      `SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC`,
-      [userId]
-    );
+
+    // Some deployments may not have created_at; fall back to id ordering.
+    let rows: any[] = [];
+    try {
+      const [r] = await pool.execute(
+        `SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC`,
+        [userId]
+      );
+      rows = r as any[];
+    } catch (error: any) {
+      if (!isUnknownColumnError(error, "created_at")) throw error;
+      const [r] = await pool.execute(
+        `SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC`,
+        [userId]
+      );
+      rows = r as any[];
+    }
+
     const orders = await Promise.all(
       (rows as any[]).map(async (o) => {
         const items = await getEnrichedOrderItems(o.id);
@@ -290,28 +314,58 @@ export const getAllOrders = async (req: Request, res: Response) => {
       ? String((req.query as any).search)
       : "";
 
-    const where: string[] = [];
-    const params: any[] = [];
-    if (status) {
-      where.push("status = ?");
-      params.push(status);
-    }
-    if (search) {
-      where.push("(id LIKE ? OR user_id LIKE ?)");
-      params.push(`%${search}%`, `%${search}%`);
-    }
-    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const buildWhere = (includeStatus: boolean) => {
+      const where: string[] = [];
+      const params: any[] = [];
 
-    const [countRows] = await pool.execute(
-      `SELECT COUNT(*) AS total FROM orders ${whereSql}`,
-      params
-    );
-    const total = Number((countRows as any[])[0]?.total ?? 0);
+      if (includeStatus && status) {
+        where.push("status = ?");
+        params.push(status);
+      }
+      if (search) {
+        where.push("(id LIKE ? OR user_id LIKE ?)");
+        params.push(`%${search}%`, `%${search}%`);
+      }
+      const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+      return { whereSql, params };
+    };
 
-    const [rows] = await pool.execute(
-      `SELECT * FROM orders ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
+    let includeStatus = Boolean(status);
+    let orderBy: "created_at" | "id" = "created_at";
+
+    let total = 0;
+    let rows: any[] = [];
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { whereSql, params } = buildWhere(includeStatus);
+
+        const [countRows] = await pool.execute(
+          `SELECT COUNT(*) AS total FROM orders ${whereSql}`,
+          params
+        );
+        total = Number((countRows as any[])[0]?.total ?? 0);
+
+        // Interpolate LIMIT/OFFSET (numbers only) to avoid driver quirks.
+        const sql = `SELECT * FROM orders ${whereSql} ORDER BY ${orderBy} DESC LIMIT ${limit} OFFSET ${offset}`;
+        const [r] = await pool.execute(sql, params);
+        rows = r as any[];
+        break;
+      } catch (error: any) {
+        if (
+          orderBy === "created_at" &&
+          isUnknownColumnError(error, "created_at")
+        ) {
+          orderBy = "id";
+          continue;
+        }
+        if (includeStatus && isUnknownColumnError(error, "status")) {
+          includeStatus = false;
+          continue;
+        }
+        throw error;
+      }
+    }
 
     const orders = await Promise.all(
       (rows as any[]).map(async (o) => {

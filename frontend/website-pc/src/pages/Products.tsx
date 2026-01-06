@@ -403,7 +403,7 @@ const Products: React.FC = () => {
               <Paper
                 elevation={3}
                 sx={{
-                  overflow: "hidden",
+                  overflow: "overlay",
                   borderRadius: 2,
                   background: `linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.95))`,
                 }}
