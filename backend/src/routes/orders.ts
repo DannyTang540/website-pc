@@ -1,5 +1,6 @@
 import express from "express";
-import { authenticateToken, isAdmin } from "../middleware/auth";
+import { authenticateToken } from "../middleware/auth";
+import { requireAdmin } from "../middleware/admin";
 import * as orderController from "../controllers/orderController";
 
 const router = express.Router();
@@ -9,6 +10,12 @@ router.post("/", authenticateToken, orderController.createOrder);
 
 // Get current user's orders
 router.get("/my-orders", authenticateToken, orderController.getUserOrders);
+
+// Order history (used by frontend)
+router.get("/history", authenticateToken, orderController.getOrderHistory);
+
+// Admin: list all orders
+router.get("/", authenticateToken, requireAdmin, orderController.getAllOrders);
 
 // Get order by id (authenticated)
 router.get("/:id", authenticateToken, orderController.getOrderById);

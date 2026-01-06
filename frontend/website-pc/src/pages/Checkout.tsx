@@ -234,16 +234,18 @@ const Checkout: React.FC = () => {
       // Make API call to create order
       const response = await api.post("/orders", orderData, {
         withCredentials: false,
-        validateStatus: (s) => s < 500,
+        validateStatus: () => true,
       });
 
-      if (response.status < 200 || response.status >= 300) {
+      const payload: any = response.data;
+      const isOk = response.status >= 200 && response.status < 300;
+      if (!isOk || payload?.success === false) {
         throw new Error(
-          (response.data as any)?.message || "Không thể tạo đơn hàng"
+          payload?.error || payload?.message || "Không thể tạo đơn hàng"
         );
       }
 
-      const result: any = response.data;
+      const result: any = payload;
 
       // Only clear cart if order was created successfully
       clearCart();
@@ -257,8 +259,13 @@ const Checkout: React.FC = () => {
       }, 2000);
     } catch (error: any) {
       console.error("Error placing order:", error);
-      // Show error message to user
-      alert(error?.message || "Có lỗi xảy ra khi đặt hàng. Vui lòng thử lại.");
+      const backendMessage =
+        error?.response?.data?.message || error?.response?.data?.error;
+      alert(
+        backendMessage ||
+          error?.message ||
+          "Có lỗi xảy ra khi đặt hàng. Vui lòng thử lại."
+      );
     } finally {
       setIsProcessing(false);
     }

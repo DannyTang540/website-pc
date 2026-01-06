@@ -21,6 +21,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import OrderHistory from "./pages/OrderHistory";
+import OrderConfirmation from "./pages/OrderConfirmation";
 import Favorites from "./pages/Favorites";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -168,6 +169,14 @@ const App: React.FC = () => {
                                   element={
                                     <ProtectedRoute>
                                       <OrderHistory />
+                                    </ProtectedRoute>
+                                  }
+                                />
+                                <Route
+                                  path="/order-confirmation/:id"
+                                  element={
+                                    <ProtectedRoute>
+                                      <OrderConfirmation />
                                     </ProtectedRoute>
                                   }
                                 />

@@ -1,5 +1,10 @@
 import { api } from "./api";
 
+const unwrap = <T>(payload: any): T => {
+  const maybe = payload?.data ?? payload;
+  return maybe as T;
+};
+
 export interface Order {
   _id: string;
   orderNumber?: string;
@@ -51,7 +56,7 @@ export const orderService = {
   getOrderById: async (id: string) => {
     try {
       const response = await api.get(`/orders/${id}`);
-      return response.data;
+      return unwrap(response.data);
     } catch (error) {
       console.error("Error fetching order:", error);
       throw error;
@@ -91,7 +96,7 @@ export const orderService = {
   getOrderHistory: async (): Promise<Order[]> => {
     try {
       const response = await api.get("/orders/history");
-      return response.data;
+      return unwrap(response.data);
     } catch (error) {
       console.error("Error fetching order history:", error);
       throw error;

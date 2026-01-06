@@ -2,6 +2,93 @@ import { Request, Response } from "express";
 import pool from "../database/database";
 import { v4 as uuidv4 } from "uuid";
 
+type EnrichedOrderItem = {
+  productId: string;
+  quantity: number;
+  price: number;
+  name: string;
+  image?: string;
+};
+
+const mapDbOrderToApi = (orderRow: any, items: EnrichedOrderItem[]) => {
+  const isPaid = Boolean(orderRow?.is_paid);
+  return {
+    _id: orderRow.id,
+    orderNumber: orderRow.order_number ?? orderRow.orderNumber,
+    userId: orderRow.user_id,
+    items,
+    total: Number(orderRow.total ?? 0),
+    status: orderRow.status,
+    paymentStatus: isPaid ? "paid" : "pending",
+    shippingAddress: orderRow.shipping_address,
+    paymentMethod: orderRow.payment_method,
+    note: orderRow.note ?? undefined,
+    createdAt: orderRow.created_at,
+    updatedAt: orderRow.updated_at,
+  };
+};
+
+const getEnrichedOrderItems = async (
+  orderId: string
+): Promise<EnrichedOrderItem[]> => {
+  // Try extended order_items schema (has name/image columns)
+  try {
+    const [rows] = await pool.execute(
+      `
+      SELECT
+        oi.product_id AS productId,
+        oi.quantity AS quantity,
+        oi.price AS price,
+        COALESCE(oi.name, p.name) AS name,
+        COALESCE(oi.image, JSON_UNQUOTE(JSON_EXTRACT(p.images, '$[0]'))) AS image
+      FROM order_items oi
+      LEFT JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = ?
+    `,
+      [orderId]
+    );
+
+    return (rows as any[]).map((r) => ({
+      productId: r.productId,
+      quantity: Number(r.quantity ?? 0),
+      price: Number(r.price ?? 0),
+      name: r.name || "Sản phẩm",
+      image: r.image || undefined,
+    }));
+  } catch (error: any) {
+    const message = String(error?.message || "");
+    const code = String(error?.code || "");
+    const isUnknownColumn =
+      code === "ER_BAD_FIELD_ERROR" || /Unknown column/i.test(message);
+
+    if (!isUnknownColumn) throw error;
+
+    // Fallback minimal order_items schema (no name/image columns)
+    const [rows] = await pool.execute(
+      `
+      SELECT
+        oi.product_id AS productId,
+        oi.quantity AS quantity,
+        oi.price AS price,
+        p.name AS name,
+        JSON_UNQUOTE(JSON_EXTRACT(p.images, '$[0]')) AS image
+      FROM order_items oi
+      LEFT JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = ?
+    `,
+      [orderId]
+    );
+
+    return (rows as any[]).map((r) => ({
+      productId: r.productId,
+      quantity: Number(r.quantity ?? 0),
+      price: Number(r.price ?? 0),
+      name: r.name || "Sản phẩm",
+      image: r.image || undefined,
+    }));
+  }
+};
+
 // Create order (simple MySQL implementation)
 export const createOrder = async (req: Request, res: Response) => {
   const conn = await pool.getConnection();
@@ -30,45 +117,96 @@ export const createOrder = async (req: Request, res: Response) => {
       const stock = r ? Number(r.stock_quantity || 0) : 0;
       if (stock < Number(it.quantity)) {
         await conn.rollback();
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: `Insufficient stock for product ${it.productId}`,
-          });
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for product ${it.productId}`,
+        });
       }
     }
 
     // Create order
     const orderId = uuidv4();
-    await conn.execute(
-      `INSERT INTO orders (id, user_id, total, status, shipping_address, city, phone, payment_method, is_paid, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, 0, NOW(), NOW())`,
-      [
-        orderId,
-        userId,
-        total || 0,
-        shippingAddress || "",
-        city || "",
-        phone || "",
-        paymentMethod || "cod",
-      ]
-    );
+    const insertOrderWithExtendedColumns = async () =>
+      conn.execute(
+        `INSERT INTO orders (id, user_id, total, status, shipping_address, city, phone, payment_method, is_paid, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, 0, NOW(), NOW())`,
+        [
+          orderId,
+          userId,
+          total || 0,
+          shippingAddress || "",
+          city || "",
+          phone || "",
+          paymentMethod || "cod",
+        ]
+      );
+
+    const insertOrderFallback = async () =>
+      conn.execute(
+        `INSERT INTO orders (id, user_id, total, status, shipping_address, payment_method, created_at, updated_at) VALUES (?, ?, ?, 'pending', ?, ?, NOW(), NOW())`,
+        [
+          orderId,
+          userId,
+          total || 0,
+          shippingAddress || "",
+          paymentMethod || "cod",
+        ]
+      );
+
+    try {
+      await insertOrderWithExtendedColumns();
+    } catch (error: any) {
+      // Some DBs were created from older schema.sql which doesn't include city/phone/is_paid.
+      // In that case, retry with a minimal column set.
+      const message = String(error?.message || "");
+      const code = String(error?.code || "");
+      const isUnknownColumn =
+        code === "ER_BAD_FIELD_ERROR" || /Unknown column/i.test(message);
+
+      if (isUnknownColumn) {
+        await insertOrderFallback();
+      } else {
+        throw error;
+      }
+    }
 
     // Insert order items and decrement stock
     for (const it of items) {
       const itemId = uuidv4();
-      await conn.execute(
-        `INSERT INTO order_items (id, order_id, product_id, quantity, price, name, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [
-          itemId,
-          orderId,
-          it.productId,
-          it.quantity,
-          it.price,
-          it.name,
-          it.image || null,
-        ]
-      );
+
+      const insertOrderItemWithExtendedColumns = async () =>
+        conn.execute(
+          `INSERT INTO order_items (id, order_id, product_id, quantity, price, name, image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+          [
+            itemId,
+            orderId,
+            it.productId,
+            it.quantity,
+            it.price,
+            it.name,
+            it.image || null,
+          ]
+        );
+
+      const insertOrderItemFallback = async () =>
+        conn.execute(
+          `INSERT INTO order_items (id, order_id, product_id, quantity, price) VALUES (?, ?, ?, ?, ?)`,
+          [itemId, orderId, it.productId, it.quantity, it.price]
+        );
+
+      try {
+        await insertOrderItemWithExtendedColumns();
+      } catch (error: any) {
+        const message = String(error?.message || "");
+        const code = String(error?.code || "");
+        const isUnknownColumn =
+          code === "ER_BAD_FIELD_ERROR" || /Unknown column/i.test(message);
+
+        if (isUnknownColumn) {
+          await insertOrderItemFallback();
+        } else {
+          throw error;
+        }
+      }
 
       // Decrement stock
       await conn.execute(
@@ -83,13 +221,18 @@ export const createOrder = async (req: Request, res: Response) => {
   } catch (error: any) {
     await conn.rollback();
     console.error("Error creating order:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: "Error creating order",
-        error: error.message,
-      });
+    const isProd = process.env.NODE_ENV === "production";
+    res.status(500).json({
+      success: false,
+      message: "Error creating order",
+      error: error?.message,
+      ...(isProd
+        ? null
+        : {
+            code: error?.code,
+            sqlMessage: error?.sqlMessage,
+          }),
+    });
   } finally {
     conn.release();
   }
@@ -104,9 +247,73 @@ export const getUserOrders = async (req: Request, res: Response) => {
       `SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC`,
       [userId]
     );
-    res.json({ success: true, data: rows });
+    const orders = await Promise.all(
+      (rows as any[]).map(async (o) => {
+        const items = await getEnrichedOrderItems(o.id);
+        return mapDbOrderToApi(o, items);
+      })
+    );
+    res.json({ success: true, data: orders });
   } catch (error) {
     console.error("Error fetching user orders:", error);
+    res.status(500).json({ success: false, message: "Error fetching orders" });
+  }
+};
+
+// Alias used by frontend OrderHistory
+export const getOrderHistory = async (req: Request, res: Response) => {
+  return getUserOrders(req, res);
+};
+
+// Admin: list all orders (paginated)
+export const getAllOrders = async (req: Request, res: Response) => {
+  try {
+    const page = Math.max(1, Number((req.query as any).page ?? 1));
+    const limit = Math.max(
+      1,
+      Math.min(100, Number((req.query as any).limit ?? 10))
+    );
+    const offset = (page - 1) * limit;
+    const status = (req.query as any).status
+      ? String((req.query as any).status)
+      : "";
+    const search = (req.query as any).search
+      ? String((req.query as any).search)
+      : "";
+
+    const where: string[] = [];
+    const params: any[] = [];
+    if (status) {
+      where.push("status = ?");
+      params.push(status);
+    }
+    if (search) {
+      where.push("(id LIKE ? OR user_id LIKE ?)");
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) AS total FROM orders ${whereSql}`,
+      params
+    );
+    const total = Number((countRows as any[])[0]?.total ?? 0);
+
+    const [rows] = await pool.execute(
+      `SELECT * FROM orders ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    const orders = await Promise.all(
+      (rows as any[]).map(async (o) => {
+        const items = await getEnrichedOrderItems(o.id);
+        return mapDbOrderToApi(o, items);
+      })
+    );
+
+    res.json({ success: true, data: orders, total, page, limit });
+  } catch (error) {
+    console.error("Error fetching all orders:", error);
     res.status(500).json({ success: false, message: "Error fetching orders" });
   }
 };
@@ -131,12 +338,8 @@ export const getOrderById = async (req: Request, res: Response) => {
     ) {
       return res.status(403).json({ success: false, message: "Forbidden" });
     }
-    const [items] = await pool.execute(
-      `SELECT * FROM order_items WHERE order_id = ?`,
-      [id]
-    );
-    order.items = items;
-    res.json({ success: true, data: order });
+    const items = await getEnrichedOrderItems(id);
+    res.json({ success: true, data: mapDbOrderToApi(order, items) });
   } catch (error) {
     console.error("Error getting order by id:", error);
     res.status(500).json({ success: false, message: "Error fetching order" });

@@ -116,7 +116,7 @@ export default function OrderSuccess() {
           <Button
             variant="contained"
             color="primary"
-            onClick={() => navigate("/order-history")}
+            onClick={() => navigate("/orders")}
           >
             Xem lịch sử đơn hàng
           </Button>
