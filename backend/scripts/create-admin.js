@@ -8,25 +8,65 @@ require("dotenv").config({
   path: require("path").join(__dirname, "..", ".env"),
 });
 
-const DB_HOST = process.env.DB_HOST || "localhost";
-const DB_USER = process.env.DB_USER || "root";
-const DB_PASSWORD = process.env.DB_PASSWORD || "";
-const DB_NAME = process.env.DB_NAME || "lvtndb";
-const DB_PORT = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
+const getPoolConfig = () => {
+  // Railway: DATABASE_URL
+  if (process.env.DATABASE_URL) {
+    return {
+      uri: process.env.DATABASE_URL,
+      waitForConnections: true,
+      connectionLimit: 5,
+      queueLimit: 0,
+      connectTimeout: 30000,
+      acquireTimeout: 30000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
+      charset: "utf8mb4",
+      ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : undefined,
+    };
+  }
+
+  // Railway: MYSQLHOST/MYSQLPORT/MYSQLUSER/MYSQLPASSWORD/MYSQLDATABASE
+  if (process.env.MYSQLHOST) {
+    return {
+      host: process.env.MYSQLHOST,
+      port: process.env.MYSQLPORT ? Number(process.env.MYSQLPORT) : 3306,
+      user: process.env.MYSQLUSER || "root",
+      password: process.env.MYSQLPASSWORD || "",
+      database: process.env.MYSQLDATABASE || "railway",
+      waitForConnections: true,
+      connectionLimit: 5,
+      queueLimit: 0,
+      connectTimeout: 30000,
+      acquireTimeout: 30000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
+      charset: "utf8mb4",
+      ssl: process.env.DB_SSL ? { rejectUnauthorized: false } : undefined,
+    };
+  }
+
+  // Local/custom: DB_*
+  return {
+    host: process.env.DB_HOST || "localhost",
+    user: process.env.DB_USER || "root",
+    password: process.env.DB_PASSWORD || "",
+    database: process.env.DB_NAME || "pc_store",
+    port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
+    waitForConnections: true,
+    connectionLimit: 5,
+    queueLimit: 0,
+    connectTimeout: 30000,
+    acquireTimeout: 30000,
+  };
+};
 
 async function main() {
   const email = process.env.ADMIN_EMAIL || "admin@example.com";
   const password = process.env.ADMIN_PASSWORD || "Admin123!";
   console.log(`Using admin email=${email}`);
 
-  const conn = await mysql.createPool({
-    host: DB_HOST,
-    user: DB_USER,
-    password: DB_PASSWORD,
-    database: DB_NAME,
-    port: DB_PORT,
-    waitForConnections: true,
-  });
+  const poolConfig = getPoolConfig();
+  const conn = await mysql.createPool(poolConfig);
 
   try {
     // Check if user exists
