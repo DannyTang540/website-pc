@@ -52,7 +52,7 @@ api.interceptors.request.use(
         if (tokenParts.length === 3) {
           const payload = JSON.parse(atob(tokenParts[1]));
           console.log("Token payload:", {
-            userId: payload.id,
+            userId: payload.userId ?? payload.id ?? payload.sub,
             exp: new Date(payload.exp * 1000).toISOString(),
             iat: new Date(payload.iat * 1000).toISOString(),
           });

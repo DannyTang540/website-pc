@@ -11,7 +11,9 @@
     "migrate": "ts-node src/database/migrate.ts",
     "migrate:sql": "mysql -u root -p pc_store < src/database/migrations/001_add_cart_tables.sql",
     "seed": "ts-node src/database/seed.ts",
-    "db:reset": "npm run db:drop && npm run db:create && npm run migrate && npm run seed"
+    "db:reset": "npm run db:drop && npm run db:create && npm run migrate && npm run seed",
+    "railway:deploy": "railway up",
+    "railway:logs": "railway logs --tail"
   },
   "keywords": [],
   "author": "",

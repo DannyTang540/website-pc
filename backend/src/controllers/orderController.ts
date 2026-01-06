@@ -40,7 +40,13 @@ const getEnrichedOrderItems = async (
         oi.quantity AS quantity,
         oi.price AS price,
         COALESCE(oi.name, p.name) AS name,
-        COALESCE(oi.image, JSON_UNQUOTE(JSON_EXTRACT(p.images, '$[0]'))) AS image
+        COALESCE(
+          oi.image,
+          CASE
+            WHEN JSON_VALID(p.images) THEN JSON_UNQUOTE(JSON_EXTRACT(p.images, '$[0]'))
+            ELSE NULL
+          END
+        ) AS image
       FROM order_items oi
       LEFT JOIN products p ON p.id = oi.product_id
       WHERE oi.order_id = ?
@@ -71,7 +77,10 @@ const getEnrichedOrderItems = async (
         oi.quantity AS quantity,
         oi.price AS price,
         p.name AS name,
-        JSON_UNQUOTE(JSON_EXTRACT(p.images, '$[0]')) AS image
+        CASE
+          WHEN JSON_VALID(p.images) THEN JSON_UNQUOTE(JSON_EXTRACT(p.images, '$[0]'))
+          ELSE NULL
+        END AS image
       FROM order_items oi
       LEFT JOIN products p ON p.id = oi.product_id
       WHERE oi.order_id = ?

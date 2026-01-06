@@ -13,20 +13,9 @@ interface FavoriteRow extends RowDataPacket {
   addedAt: Date;
 }
 
-interface User {
-  id: string;
-  isAdmin: boolean;
-}
-
-declare module "express-serve-static-core" {
-  interface Request {
-    user?: User;
-  }
-}
-
 export const getFavorites = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).userId as string | undefined;
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -64,7 +53,7 @@ export const getFavorites = async (req: Request, res: Response) => {
 
 export const addToFavorites = async (req: any, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).userId as string | undefined;
     const { productId } = req.body;
 
     if (!userId) {
@@ -95,7 +84,7 @@ export const addToFavorites = async (req: any, res: Response) => {
     }
 
     // Add to favorites
-    const [result] = await pool.query<ResultSetHeader>(
+    await pool.query<ResultSetHeader>(
       "INSERT INTO favorites (user_id, product_id) VALUES (?, ?)",
       [userId, productId]
     );
@@ -105,8 +94,10 @@ export const addToFavorites = async (req: any, res: Response) => {
       `SELECT f.id, p.id as product_id, p.name, p.slug, p.price, p.images, p.description, f.created_at as addedAt 
        FROM favorites f 
        JOIN products p ON f.product_id = p.id 
-       WHERE f.id = ?`,
-      [result.insertId]
+       WHERE f.user_id = ? AND f.product_id = ?
+       ORDER BY f.created_at DESC
+       LIMIT 1`,
+      [userId, productId]
     );
 
     const favorite =
@@ -138,7 +129,7 @@ export const addToFavorites = async (req: any, res: Response) => {
 
 export const removeFromFavorites = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).userId as string | undefined;
     const { productId } = req.params;
 
     if (!userId) {
@@ -168,7 +159,7 @@ export const removeFromFavorites = async (req: Request, res: Response) => {
 
 export const checkFavorite = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).userId as string | undefined;
     const { productId } = req.params;
 
     if (!userId) {
@@ -195,7 +186,7 @@ export const checkFavorite = async (req: Request, res: Response) => {
 
 export const clearFavorites = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).userId as string | undefined;
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });

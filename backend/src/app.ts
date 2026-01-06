@@ -4,9 +4,8 @@ import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import path from "path";
-import bodyParser from "body-parser";
 import { Request, Response, NextFunction } from "express";
-
+import { initializeDatabase, testConnection } from "./database/database";
 // Import routes
 import authRoutes from "./routes/auth";
 import userRoutes from "./routes/users";
@@ -51,7 +50,33 @@ const parseAllowedOrigins = (): string[] => {
     .filter(Boolean);
 };
 
-const allowedOrigins = new Set(parseAllowedOrigins());
+const initializeApp = async () => {
+  try {
+    console.log("🔄 Initializing application...");
+
+    // Test database connection
+    console.log("🔍 Testing database connection...");
+    const dbConnected = await testConnection();
+
+    if (!dbConnected) {
+      console.error(
+        "❌ Cannot connect to database. Please check your configuration."
+      );
+      console.log("📝 Database config:", {
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        hasMysqlHost: !!process.env.MYSQLHOST,
+        dbHost: process.env.DB_HOST,
+        dbName: process.env.DB_NAME,
+      });
+    } else {
+      // Khởi tạo database structure nếu cần
+      await initializeDatabase();
+      console.log("✅ Database initialized successfully!");
+    }
+  } catch (error) {
+    console.error("❌ Application initialization failed:", error);
+  }
+};
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
@@ -136,7 +161,6 @@ app.get("/api/health", (req: Request, res: Response) => {
     environment: process.env.NODE_ENV || "development",
   });
 });
-app.use(cors(corsOptions));
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -191,12 +215,22 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Express 5 (path-to-regexp v6) doesn't accept "*" as a path pattern.
 // Use a RegExp to match all routes for preflight.
 app.options(/.*/, cors(corsOptions));
-// Start server
-app.listen(PORT, () => {
-  console.log(`🟢 Server đang chạy trên cổng ${PORT}`);
-  console.log(`🌍 Môi trường: ${process.env.NODE_ENV || "development"}`);
-  console.log(`🔗 CORS cho phép: ${corsOptions.origin}`);
-  console.log(`📁 Thư mục upload: ${uploadsDir}`);
+
+// Start server (listen exactly once, after middleware/routes are registered)
+initializeApp().finally(() => {
+  app.listen(PORT, () => {
+    console.log(`🟢 Server đang chạy trên cổng ${PORT}`);
+    console.log(`🌍 Môi trường: ${process.env.NODE_ENV || "development"}`);
+    console.log(
+      `🔗 CORS cho phép: ${process.env.CLIENT_URL || "http://localhost:3000"}`
+    );
+    console.log(
+      `🗄️  Database: ${
+        process.env.DB_NAME || process.env.MYSQLDATABASE || "pc_store"
+      }`
+    );
+    console.log(`📁 Thư mục upload: ${uploadsDir}`);
+  });
 });
 
 export default app;

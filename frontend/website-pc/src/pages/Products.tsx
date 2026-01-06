@@ -69,7 +69,9 @@ const Products: React.FC = () => {
 
         // Add category filter if specified in URL
         if (categoryParam) {
-          filter.categoryId = categoryParam;
+          // UI links pass category name via ?category=...
+          // Backend/productService supports filtering by category name via `category`.
+          filter.category = categoryParam;
         }
 
         console.log("Fetching products with filter:", filter);
@@ -150,8 +152,12 @@ const Products: React.FC = () => {
 
     // Filter products based on search term
     const filteredProducts = products.filter((product) => {
-      // If there's a category filter and this product doesn't match, filter it out
-      if (categoryParam && product.categoryId !== categoryParam) {
+      // If there's a category filter, match by category name or id
+      if (
+        categoryParam &&
+        product.categoryId !== categoryParam &&
+        product.category !== categoryParam
+      ) {
         return false;
       }
 
@@ -212,14 +218,14 @@ const Products: React.FC = () => {
     setVisibleCategories((prev) => prev + 2);
   };
 
-const handleAddToCart = async (product: Product) => {
-  try {
-    await addToCart(String(product.id), 1);
-    // You might want to add a success notification here
-  } catch (error) {
-    console.error('Error adding to cart:', error);
-  }
-};
+  const handleAddToCart = async (product: Product) => {
+    try {
+      await addToCart(String(product.id), 1);
+      // You might want to add a success notification here
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+    }
+  };
 
   const handleToggleFavorite = (product: Product) => {
     if (!product?.id) return;
@@ -232,7 +238,7 @@ const handleAddToCart = async (product: Product) => {
   };
 
   const handleViewProduct = (product: Product) => {
-    navigate(`/product/${product.slug}`);
+    navigate(`/products/${product.slug}`);
   };
 
   if (loading) {
@@ -398,7 +404,10 @@ const handleAddToCart = async (product: Product) => {
                             )}
                             <CardMedia
                               component="img"
-                              image={getFirstProductImage(product) || "/placeholder-image.png"}
+                              image={
+                                getFirstProductImage(product) ||
+                                "/placeholder-image.png"
+                              }
                               alt={product.name}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
