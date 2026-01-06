@@ -1,7 +1,6 @@
 // src/contexts/FavoritesContext.tsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { api } from "../services/api";
-import { authService } from "../services/authService";
 
 export interface FavoriteItem {
   id: string;
