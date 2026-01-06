@@ -30,6 +30,7 @@ import {
   Print as PrintIcon,
   Visibility as ViewIcon,
 } from "@mui/icons-material";
+import { toast } from "react-toastify";
 import DataTable from "../../components/admin/common/DataTable";
 import SearchBar from "../../components/admin/common/SearchBar";
 import type { Column } from "../../components/admin/common/DataTable";
@@ -114,6 +115,14 @@ const AdminOrders: React.FC = () => {
       console.error("Load orders failed", err);
       setOrders([]);
       setTotal(0);
+
+      const anyErr: any = err;
+      const message =
+        anyErr?.response?.data?.message ||
+        anyErr?.response?.data?.error ||
+        anyErr?.message ||
+        "Không thể tải danh sách đơn hàng";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -157,7 +166,7 @@ const AdminOrders: React.FC = () => {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, rowsPerPage]);
+  }, [page, rowsPerPage, statusFilter]);
 
   const columns: Column[] = [
     { id: "id", label: "Mã đơn", minWidth: 150 },
