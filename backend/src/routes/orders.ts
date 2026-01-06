@@ -17,6 +17,14 @@ router.get("/history", authenticateToken, orderController.getOrderHistory);
 // Admin: list all orders
 router.get("/", authenticateToken, requireAdmin, orderController.getAllOrders);
 
+// Admin: update order status
+router.put(
+  "/:id/status",
+  authenticateToken,
+  requireAdmin,
+  orderController.updateOrderStatus
+);
+
 // Get order by id (authenticated)
 router.get("/:id", authenticateToken, orderController.getOrderById);
 

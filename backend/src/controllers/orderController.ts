@@ -409,7 +409,78 @@ export const getOrderById = async (req: Request, res: Response) => {
   }
 };
 
-export default { createOrder, getUserOrders, getOrderById };
+// Admin: update order status
+export const updateOrderStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const status = String((req.body as any)?.status ?? "").trim();
+
+    const allowed = [
+      "pending",
+      "confirmed",
+      "shipped",
+      "delivered",
+      "cancelled",
+      "completed",
+    ];
+
+    if (!id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Order id is required" });
+    }
+    if (!status || !allowed.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status",
+        allowed,
+      });
+    }
+
+    // Try with updated_at; some schemas may not have it
+    try {
+      await pool.execute(
+        `UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?`,
+        [status, id]
+      );
+    } catch (error: any) {
+      const message = String(error?.sqlMessage || error?.message || "");
+      const code = String(error?.code || "");
+      const isUnknownColumn =
+        code === "ER_BAD_FIELD_ERROR" || /Unknown column/i.test(message);
+      if (!isUnknownColumn) throw error;
+
+      await pool.execute(`UPDATE orders SET status = ? WHERE id = ?`, [
+        status,
+        id,
+      ]);
+    }
+
+    const [orders] = await pool.execute(`SELECT * FROM orders WHERE id = ?`, [
+      id,
+    ]);
+    const order = (orders as any[])[0];
+    if (!order) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+
+    const items = await getEnrichedOrderItems(id);
+    return res.json({
+      success: true,
+      message: "Order status updated",
+      data: mapDbOrderToApi(order, items),
+    });
+  } catch (error) {
+    console.error("Error updating order status:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Error updating order status" });
+  }
+};
+
+export default { createOrder, getUserOrders, getOrderById, updateOrderStatus };
 // // backend/src/controllers/orderController.ts
 // import { Request, Response } from "express";
 // import mongoose from "mongoose";
