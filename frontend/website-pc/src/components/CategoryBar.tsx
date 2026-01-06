@@ -27,6 +27,7 @@ import {
   Category as CategoryIcon,
 } from "@mui/icons-material";
 import { Link } from "react-router-dom";
+import { api } from "../services/api";
 
 interface ExtendedSubCategory {
   id: string;
@@ -83,8 +84,11 @@ const CategoryBar: React.FC = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch("/api/categories");
-        const json = await response.json();
+        const response = await api.get("/categories", {
+          // This endpoint is public; cookies are not required
+          withCredentials: false,
+        });
+        const json = response.data;
 
         const cats: ExtendedCategory[] = Array.isArray(json)
           ? json
@@ -172,7 +176,7 @@ const CategoryBar: React.FC = () => {
       sx={{
         display: { xs: "none", md: "flex" },
         alignItems: "center",
-        
+
         position: "relative",
       }}
     >

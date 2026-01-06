@@ -2,8 +2,15 @@
 import axios, { AxiosError, type AxiosResponse } from "axios";
 import type { AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const normalizeApiBaseUrl = (value: string): string => {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return "http://localhost:5000/api";
+  return /\/api$/i.test(trimmed) ? trimmed : `${trimmed}/api`;
+};
+
+export const API_BASE_URL = normalizeApiBaseUrl(
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api"
+);
 
 // Extend AxiosRequestConfig to include our custom options
 declare module "axios" {

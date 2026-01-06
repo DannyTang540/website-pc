@@ -38,11 +38,42 @@ app.use(
 );
 
 // CORS configuration
-const corsOptions = {
-  origin:
-    process.env.NODE_ENV === "production"
-      ? process.env.CLIENT_URL
-      : ["http://localhost:3000", "http://127.0.0.1:3000"],
+const parseAllowedOrigins = (): string[] => {
+  const fromClientUrl = process.env.CLIENT_URL
+    ? process.env.CLIENT_URL.split(",")
+    : [];
+  const fromAllowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",")
+    : [];
+
+  return [...fromClientUrl, ...fromAllowedOrigins]
+    .map((s) => s.trim())
+    .filter(Boolean);
+};
+
+const allowedOrigins = new Set(parseAllowedOrigins());
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // allow non-browser clients (curl/postman) with no Origin header
+    if (!origin) return callback(null, true);
+
+    // always allow local dev
+    if (
+      origin === "http://localhost:3000" ||
+      origin === "http://127.0.0.1:3000"
+    ) {
+      return callback(null, true);
+    }
+
+    // in production, only allow configured origins
+    if (process.env.NODE_ENV === "production") {
+      if (allowedOrigins.has(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    }
+
+    return callback(null, true);
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   credentials: true,
@@ -62,18 +93,19 @@ app.use(
   "/uploads",
   express.static(uploadsDir, {
     setHeaders: (res) => {
-      // Allow all origins for static files
-      res.set("Access-Control-Allow-Origin", "*");
       // Disable Cross-Origin-Resource-Policy to allow cross-origin access
       res.removeHeader("Cross-Origin-Resource-Policy");
-      res.set(
-        "Access-Control-Allow-Methods",
-        corsOptions.methods?.join(",") || ""
-      );
-      res.set(
-        "Access-Control-Allow-Headers",
-        corsOptions.allowedHeaders?.join(",") || ""
-      );
+
+      const methodsHeader = Array.isArray(corsOptions.methods)
+        ? corsOptions.methods.join(",")
+        : corsOptions.methods || "";
+
+      const allowedHeadersHeader = Array.isArray(corsOptions.allowedHeaders)
+        ? corsOptions.allowedHeaders.join(",")
+        : corsOptions.allowedHeaders || "";
+
+      res.set("Access-Control-Allow-Methods", methodsHeader);
+      res.set("Access-Control-Allow-Headers", allowedHeadersHeader);
       res.set("Cache-Control", "public, max-age=31536000");
     },
   })
@@ -153,6 +185,5 @@ app.listen(PORT, () => {
   console.log(`🔗 CORS cho phép: ${corsOptions.origin}`);
   console.log(`📁 Thư mục upload: ${uploadsDir}`);
 });
-
 
 export default app;
