@@ -29,6 +29,37 @@ interface CartResponse {
   items: CartItemResponse[];
 }
 
+type CartApiEnvelope =
+  | CartResponse
+  | {
+      success?: boolean;
+      message?: string;
+      cart?: CartResponse;
+      data?: CartResponse;
+    };
+
+const extractCart = (payload: CartApiEnvelope | any): CartResponse | null => {
+  if (!payload) return null;
+
+  const maybeCart = payload.cart ?? payload.data ?? payload;
+  if (!maybeCart) return null;
+
+  // Some backend responses use userId/createdAt casing when cart is empty
+  const normalized: any = {
+    ...maybeCart,
+    user_id: maybeCart.user_id ?? maybeCart.userId,
+    created_at: maybeCart.created_at ?? maybeCart.createdAt,
+    updated_at: maybeCart.updated_at ?? maybeCart.updatedAt,
+    items: Array.isArray(maybeCart.items) ? maybeCart.items : [],
+    total:
+      typeof maybeCart.total === "number"
+        ? String(maybeCart.total)
+        : maybeCart.total ?? "0",
+  };
+
+  return normalized as CartResponse;
+};
+
 export const cartService = {
   getCart: async (): Promise<CartItem[]> => {
     try {
@@ -39,16 +70,18 @@ export const cartService = {
         return [];
       }
 
-      const response = await api.get<CartResponse>("/cart", {
+      const response = await api.get<CartApiEnvelope>("/cart", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       console.log("Cart response:", response.data);
 
+      const cart = extractCart(response.data);
+
       // Transform the backend response to match frontend's CartItem format
-      if (response.data?.items) {
-        return response.data.items.map((item) => ({
+      if (cart?.items) {
+        return cart.items.map((item) => ({
           id: item.id,
           productId: item.product_id,
           name: item.name,
@@ -90,7 +123,7 @@ export const cartService = {
       }
       console.log("Adding to cart with token:", token.substring(0, 10) + "...");
 
-      const response = await api.post<CartResponse>(
+      const response = await api.post<CartApiEnvelope>(
         "/cart/items",
         {
           product_id: productId,
@@ -104,10 +137,15 @@ export const cartService = {
         }
       );
 
-      if (!response.data || !Array.isArray(response.data.items)) {
+      const cart = extractCart(response.data);
+      if (!cart || !Array.isArray(cart.items)) {
         throw new Error("Invalid response format from server");
       }
-      const lastItem = response.data.items[response.data.items.length - 1];
+
+      const lastItem = cart.items[cart.items.length - 1];
+      if (!lastItem) {
+        throw new Error("Cart item not found in server response");
+      }
       return {
         id: lastItem.id,
         productId: lastItem.product_id,
@@ -180,7 +218,8 @@ export const cartService = {
         );
       }
 
-      await api.delete("/cart/items", {
+      // Backend clears cart via DELETE /cart
+      await api.delete("/cart", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
