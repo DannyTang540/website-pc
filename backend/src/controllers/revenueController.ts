@@ -4,10 +4,10 @@ import pool from "../database/database";
 export const getRevenueStats = async (req: Request, res: Response) => {
   try {
     const { period = "month", startDate, endDate } = req.query;
-    
+
     let dateFilter = "";
     const params: any[] = [];
-    
+
     if (startDate && endDate) {
       dateFilter = "AND DATE(created_at) BETWEEN ? AND ?";
       params.push(startDate, endDate);
@@ -21,7 +21,8 @@ export const getRevenueStats = async (req: Request, res: Response) => {
           dateFilter = "AND YEARWEEK(created_at) = YEARWEEK(CURDATE())";
           break;
         case "month":
-          dateFilter = "AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE())";
+          dateFilter =
+            "AND YEAR(created_at) = YEAR(CURDATE()) AND MONTH(created_at) = MONTH(CURDATE())";
           break;
         case "year":
           dateFilter = "AND YEAR(created_at) = YEAR(CURDATE())";
@@ -41,7 +42,13 @@ export const getRevenueStats = async (req: Request, res: Response) => {
       params
     );
 
-    res.json({ success: true, data: rows });
+    const normalized = (rows as any[]).map((r) => ({
+      ...r,
+      orderCount: Number(r.orderCount) || 0,
+      revenue: Number(r.revenue) || 0,
+    }));
+
+    res.json({ success: true, data: normalized });
   } catch (error) {
     console.error("Get revenue stats error:", error);
     res.status(500).json({ success: false, message: "Server error" });
@@ -51,7 +58,7 @@ export const getRevenueStats = async (req: Request, res: Response) => {
 export const getOverview = async (req: Request, res: Response) => {
   try {
     const pool = (await import("../database/database")).default;
-    
+
     // Total revenue and orders
     const [totalRows] = await pool.execute(
       `SELECT 
@@ -104,7 +111,7 @@ export const getOverview = async (req: Request, res: Response) => {
 export const getTopProducts = async (req: Request, res: Response) => {
   try {
     const { limit = 10, period = "month" } = req.query;
-    
+
     let dateFilter = "";
     switch (period) {
       case "day":
@@ -114,7 +121,8 @@ export const getTopProducts = async (req: Request, res: Response) => {
         dateFilter = "AND YEARWEEK(o.created_at) = YEARWEEK(CURDATE())";
         break;
       case "month":
-        dateFilter = "AND YEAR(o.created_at) = YEAR(CURDATE()) AND MONTH(o.created_at) = MONTH(CURDATE())";
+        dateFilter =
+          "AND YEAR(o.created_at) = YEAR(CURDATE()) AND MONTH(o.created_at) = MONTH(CURDATE())";
         break;
       case "year":
         dateFilter = "AND YEAR(o.created_at) = YEAR(CURDATE())";
@@ -137,7 +145,13 @@ export const getTopProducts = async (req: Request, res: Response) => {
       [Number(limit)]
     );
 
-    res.json({ success: true, data: rows });
+    const normalized = (rows as any[]).map((r) => ({
+      ...r,
+      totalSold: Number(r.totalSold) || 0,
+      revenue: Number(r.revenue) || 0,
+    }));
+
+    res.json({ success: true, data: normalized });
   } catch (error) {
     console.error("Get top products error:", error);
     res.status(500).json({ success: false, message: "Server error" });

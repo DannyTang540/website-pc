@@ -5,6 +5,8 @@ import {
   Card,
   CardContent,
   Button,
+  Alert,
+  CircularProgress,
   FormControl,
   InputLabel,
   Select,
@@ -22,6 +24,7 @@ import {
   ShoppingCart,
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
+import { adminService } from "../../services/adminService";
 
 interface RevenueOverview {
   totalRevenue: number;
@@ -32,6 +35,12 @@ interface RevenueOverview {
   monthlyOrders: number;
 }
 
+interface TopProduct {
+  productId: string;
+  productName: string;
+  totalSold: number;
+  revenue: number;
+}
 const Revenue: React.FC = () => {
   const [overview, setOverview] = useState<RevenueOverview>({
     totalRevenue: 0,
@@ -41,8 +50,9 @@ const Revenue: React.FC = () => {
     monthlyRevenue: 0,
     monthlyOrders: 0,
   });
-  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<"day" | "week" | "month" | "year">(
     "month"
   );
@@ -53,87 +63,33 @@ const Revenue: React.FC = () => {
 
   const loadRevenueData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Mock data for revenue
-      const mockOverview: RevenueOverview = {
-        totalRevenue: 2845000000, // 2.845 tỷ VND
-        totalOrders: 156,
-        todayRevenue: 285000000, // 285 triệu VND hôm nay
-        todayOrders: 8,
-        monthlyRevenue: 1245000000, // 1.245 tỷ VND tháng này
-        monthlyOrders: 67,
-      };
+      const [overviewData, topProductsData] = await Promise.all([
+        adminService.revenue.getOverview(),
+        adminService.revenue.getTopProducts({ limit: 10, period }),
+      ]);
 
-      const mockTopProducts = [
-        {
-          productId: "prod-001",
-          productName: "PC Gaming RTX 4090",
-          totalSold: 23,
-          revenue: 1377000000, // 1.377 tỷ
-        },
-        {
-          productId: "prod-002",
-          productName: "PC Gaming RTX 4080",
-          totalSold: 18,
-          revenue: 646200000, // 646.2 triệu
-        },
-        {
-          productId: "prod-003",
-          productName: "PC Gaming RTX 4070",
-          totalSold: 15,
-          revenue: 427500000, // 427.5 triệu
-        },
-        {
-          productId: "prod-004",
-          productName: "Laptop Gaming Acer Nitro 5",
-          totalSold: 12,
-          revenue: 226800000, // 226.8 triệu
-        },
-        {
-          productId: "prod-005",
-          productName: "PC Gaming Ryzen 7 + RTX 4070",
-          totalSold: 10,
-          revenue: 325000000, // 325 triệu
-        },
-        {
-          productId: "prod-006",
-          productName: "Màn hình Samsung 27inch 144Hz",
-          totalSold: 25,
-          revenue: 250000000, // 250 triệu
-        },
-        {
-          productId: "prod-007",
-          productName: "PC Gaming RTX 4060 Ti",
-          totalSold: 8,
-          revenue: 196000000, // 196 triệu
-        },
-        {
-          productId: "prod-008",
-          productName: "Gaming Chair DXRacer",
-          totalSold: 20,
-          revenue: 89000000, // 89 triệu
-        },
-        {
-          productId: "prod-009",
-          productName: "Bàn Gaming LED RGB",
-          totalSold: 14,
-          revenue: 112000000, // 112 triệu
-        },
-        {
-          productId: "prod-010",
-          productName: "PC Gaming RTX 4060",
-          totalSold: 11,
-          revenue: 141900000, // 141.9 triệu
-        },
-      ];
+      setOverview({
+        totalRevenue: Number(overviewData.totalRevenue) || 0,
+        totalOrders: Number(overviewData.totalOrders) || 0,
+        todayRevenue: Number(overviewData.todayRevenue) || 0,
+        todayOrders: Number(overviewData.todayOrders) || 0,
+        monthlyRevenue: Number(overviewData.monthlyRevenue) || 0,
+        monthlyOrders: Number(overviewData.monthlyOrders) || 0,
+      });
 
-      // Simulate loading delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      setOverview(mockOverview);
-      setTopProducts(mockTopProducts);
+      setTopProducts(
+        (topProductsData || []).map((p) => ({
+          productId: p.productId,
+          productName: p.productName,
+          totalSold: Number(p.totalSold) || 0,
+          revenue: Number(p.revenue) || 0,
+        }))
+      );
     } catch (error) {
       console.error("Error loading revenue data:", error);
+      setError("Không thể tải dữ liệu doanh thu. Vui lòng thử lại sau.");
     } finally {
       setLoading(false);
     }
@@ -148,6 +104,11 @@ const Revenue: React.FC = () => {
 
   return (
     <Box>
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
       <Box
         sx={{
           display: "flex",
@@ -179,7 +140,7 @@ const Revenue: React.FC = () => {
             onClick={loadRevenueData}
             disabled={loading}
           >
-            Làm mới
+            {loading ? <CircularProgress size={18} /> : "Làm mới"}
           </Button>
         </Box>
       </Box>

@@ -105,6 +105,15 @@ const processProductData = (data: any) => {
 };
 
 export const adminService = {
+  // Helper: unwrap API response that may be { success, data }
+  // Keep local to this module to avoid changing other services.
+  _unwrap<T>(body: any): T {
+    if (body && typeof body === "object" && "success" in body) {
+      if ((body as any).success) return (body as any).data as T;
+      throw new Error((body as any).message || "Request failed");
+    }
+    return body as T;
+  },
   // ==================== QUẢN LÝ DANH MỤC ====================
   categories: {
     getAll: () => {
@@ -381,31 +390,38 @@ export const adminService = {
 
   // ==================== QUẢN LÝ DOANH THU ====================
   revenue: {
-    getStats: (params: {
+    getStats: async (params: {
       period: "day" | "week" | "month" | "year";
       startDate?: string;
       endDate?: string;
-    }) => api.get<RevenueStats[]>("/revenue/stats", { params }),
+    }) => {
+      const res = await api.get("/revenue/stats", { params });
+      return adminService._unwrap<RevenueStats[]>(res.data);
+    },
 
-    getOverview: () =>
-      api.get<{
+    getOverview: async () => {
+      const res = await api.get("/revenue/overview");
+      return adminService._unwrap<{
         totalRevenue: number;
         totalOrders: number;
         todayRevenue: number;
         todayOrders: number;
         monthlyRevenue: number;
         monthlyOrders: number;
-      }>("/revenue/overview"),
+      }>(res.data);
+    },
 
-    getTopProducts: (params: { limit?: number; period?: string }) =>
-      api.get<
+    getTopProducts: async (params: { limit?: number; period?: string }) => {
+      const res = await api.get("/revenue/top-products", { params });
+      return adminService._unwrap<
         Array<{
           productId: string;
           productName: string;
           totalSold: number;
           revenue: number;
         }>
-      >("/revenue/top-products", { params }),
+      >(res.data);
+    },
   },
 
   // ==================== QUẢN LÝ NGƯỜI DÙNG ====================

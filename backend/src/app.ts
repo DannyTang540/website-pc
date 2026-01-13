@@ -36,6 +36,8 @@ app.use(
   })
 );
 
+app.set("trust proxy", 1); // Nếu ứng dụng chạy sau proxy như Nginx hoặc Heroku
+
 // CORS configuration
 const parseAllowedOrigins = (): string[] => {
   const fromClientUrl = process.env.CLIENT_URL
@@ -121,7 +123,16 @@ app.use(cors(corsOptions));
 // Handle all CORS preflight requests early
 // Express 5 (path-to-regexp v6) doesn't accept "*" as a path pattern.
 app.options(/.*/, cors(corsOptions));
-
+app.use((req, res, next) => {
+  // Chỉ áp dụng cho production
+  if (process.env.NODE_ENV === "production") {
+    // Kiểm tra nếu request là HTTP, redirect sang HTTPS
+    if (req.headers["x-forwarded-proto"] !== "https") {
+      return res.redirect(301, `https://${req.headers.host}${req.url}`);
+    }
+  }
+  next();
+});
 // Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
