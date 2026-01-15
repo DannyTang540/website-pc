@@ -439,21 +439,47 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
     // Try with updated_at; some schemas may not have it
     try {
-      await pool.execute(
-        `UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?`,
-        [status, id]
-      );
+      try {
+        await pool.execute(
+          `UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?`,
+          [status, id]
+        );
+      } catch (error: any) {
+        const message = String(error?.sqlMessage || error?.message || "");
+        const code = String(error?.code || "");
+
+        // If schema doesn't have updated_at, retry without it
+        const isUnknownColumn =
+          code === "ER_BAD_FIELD_ERROR" || /Unknown column/i.test(message);
+        if (isUnknownColumn) {
+          await pool.execute(`UPDATE orders SET status = ? WHERE id = ?`, [
+            status,
+            id,
+          ]);
+        } else {
+          throw error;
+        }
+      }
     } catch (error: any) {
       const message = String(error?.sqlMessage || error?.message || "");
       const code = String(error?.code || "");
-      const isUnknownColumn =
-        code === "ER_BAD_FIELD_ERROR" || /Unknown column/i.test(message);
-      if (!isUnknownColumn) throw error;
+      const isEnumValueError =
+        code === "ER_WRONG_VALUE_FOR_FIELD" ||
+        code === "ER_TRUNCATED_WRONG_VALUE" ||
+        /Incorrect .* value/i.test(message) ||
+        /Data truncated/i.test(message);
 
-      await pool.execute(`UPDATE orders SET status = ? WHERE id = ?`, [
-        status,
-        id,
-      ]);
+      if (isEnumValueError) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Trạng thái không hợp lệ với schema hiện tại (ENUM). Hãy dùng 'delivered' hoặc cập nhật schema để hỗ trợ trạng thái này.",
+          requested: status,
+          allowed,
+        });
+      }
+
+      throw error;
     }
 
     const [orders] = await pool.execute(`SELECT * FROM orders WHERE id = ?`, [

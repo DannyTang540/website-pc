@@ -534,9 +534,11 @@ const AdminOrders: React.FC = () => {
                 options: [
                   { value: "", label: "Tất cả" },
                   { value: "pending", label: "Chờ xử lý" },
+                  { value: "confirmed", label: "Đã xác nhận" },
+                  { value: "shipped", label: "Đang giao" },
+                  { value: "delivered", label: "Hoàn tất" },
                   { value: "completed", label: "Hoàn thành" },
                   { value: "cancelled", label: "Đã hủy" },
-                  { value: "shipped", label: "Đã gửi" },
                 ],
                 onChange: (value) => {
                   setStatusFilter(value);
