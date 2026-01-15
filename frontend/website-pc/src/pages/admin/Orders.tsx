@@ -64,19 +64,77 @@ const AdminOrders: React.FC = () => {
     return "";
   };
 
-  const extractCustomerName = (raw: any) =>
-    firstNonEmpty(
+  const tryParseJson = (value: any) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return null;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  };
+
+  const buildFullName = (firstName?: any, lastName?: any) => {
+    const first = typeof firstName === "string" ? firstName.trim() : "";
+    const last = typeof lastName === "string" ? lastName.trim() : "";
+    return `${first} ${last}`.trim();
+  };
+
+  const resolveCustomerNameFromUser = (user: any) => {
+    const full = firstNonEmpty(
+      user?.fullName,
+      user?.full_name,
+      buildFullName(user?.firstName, user?.lastName),
+      buildFullName(user?.first_name, user?.last_name),
+      user?.name,
+      user?.username,
+      user?.phone
+    );
+    return full || "";
+  };
+
+  const resolveCustomerEmailFromUser = (user: any) =>
+    firstNonEmpty(user?.email, user?.userEmail, user?.user_email);
+
+  const extractCustomerName = (raw: any) => {
+    const shippingObj =
+      raw?.shippingAddress && typeof raw.shippingAddress === "object"
+        ? raw.shippingAddress
+        : raw?.shipping_address && typeof raw.shipping_address === "object"
+        ? raw.shipping_address
+        : tryParseJson(raw?.shippingAddress ?? raw?.shipping_address);
+
+    const nameFromShipping = shippingObj
+      ? firstNonEmpty(
+          shippingObj?.fullName,
+          shippingObj?.name,
+          buildFullName(shippingObj?.firstName, shippingObj?.lastName),
+          buildFullName(shippingObj?.first_name, shippingObj?.last_name),
+          shippingObj?.recipientName,
+          shippingObj?.receiverName
+        )
+      : "";
+
+    const nameFromUser = raw?.user ? resolveCustomerNameFromUser(raw.user) : "";
+
+    // IMPORTANT: prefer real names; do not pick email unless no other choice
+    const best = firstNonEmpty(
       raw?.customerName,
       raw?.customer_name,
       raw?.userName,
       raw?.user_name,
-      raw?.user?.fullName,
-      raw?.user?.name,
-      raw?.user?.username,
-      raw?.user?.email,
-      raw?.shippingAddress?.fullName,
-      raw?.shipping_address?.fullName
+      nameFromUser,
+      nameFromShipping
     );
+
+    if (best) return best;
+    const emailFallback = raw?.user
+      ? resolveCustomerEmailFromUser(raw.user)
+      : "";
+    return emailFallback;
+  };
 
   const normalizeOrderItem = (raw: any) => {
     const productId = String(
@@ -286,8 +344,9 @@ const AdminOrders: React.FC = () => {
       const detailed = normalizeOrder(data);
       setSelectedOrder(detailed);
 
-      const normalizedItems = (detailed.items ?? detailed.orderItems ?? [])
-        .map(normalizeOrderItem);
+      const normalizedItems = (detailed.items ?? detailed.orderItems ?? []).map(
+        normalizeOrderItem
+      );
       setOrderItems(await enrichMissingProductNames(normalizedItems));
 
       // If backend doesn't include customer name, fetch user by id once
@@ -296,15 +355,14 @@ const AdminOrders: React.FC = () => {
           const user: any = await adminService.users.getById(
             String(detailed.userId)
           );
-          const name = firstNonEmpty(
-            user?.fullName,
-            user?.name,
-            user?.username,
-            user?.email
-          );
-          if (name) {
+          const displayName = resolveCustomerNameFromUser(user);
+          const email = resolveCustomerEmailFromUser(user);
+          const nameToShow = displayName || email;
+          if (nameToShow) {
             setSelectedOrder((prev) =>
-              prev ? ({ ...prev, customerName: name } as AdminOrder) : prev
+              prev
+                ? ({ ...prev, customerName: nameToShow } as AdminOrder)
+                : prev
             );
           }
         } catch {
@@ -380,7 +438,7 @@ const AdminOrders: React.FC = () => {
         }).format(value),
     },
     {
-      id: "status",     
+      id: "status",
       label: "Trạng thái",
       minWidth: 120,
       format: (value: string) => (
