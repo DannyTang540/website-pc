@@ -37,8 +37,10 @@ import type { Column } from "../../components/admin/common/DataTable";
 import type { Order } from "../../types/admin";
 import { adminService } from "../../services/adminService";
 
+type AdminOrder = Order & { customerName?: string };
+
 const AdminOrders: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -49,11 +51,105 @@ const AdminOrders: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("");
 
   // Order detail & status change
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [orderDetailOpen, setOrderDetailOpen] = useState(false);
   const [statusChangeOpen, setStatusChangeOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<Order["status"]>("pending");
   const [orderItems, setOrderItems] = useState<any[]>([]);
+
+  const firstNonEmpty = (...values: any[]) => {
+    for (const v of values) {
+      if (typeof v === "string" && v.trim()) return v;
+    }
+    return "";
+  };
+
+  const extractCustomerName = (raw: any) =>
+    firstNonEmpty(
+      raw?.customerName,
+      raw?.customer_name,
+      raw?.userName,
+      raw?.user_name,
+      raw?.user?.fullName,
+      raw?.user?.name,
+      raw?.user?.username,
+      raw?.user?.email,
+      raw?.shippingAddress?.fullName,
+      raw?.shipping_address?.fullName
+    );
+
+  const normalizeOrderItem = (raw: any) => {
+    const productId = String(
+      raw?.productId ?? raw?.product_id ?? raw?.product?.id ?? raw?.id ?? ""
+    );
+    const productName = firstNonEmpty(
+      raw?.productName,
+      raw?.product_name,
+      raw?.name,
+      raw?.product?.name,
+      raw?.product?.title,
+      raw?.title
+    );
+    const image = firstNonEmpty(
+      raw?.image,
+      raw?.productImage,
+      raw?.product_image,
+      raw?.product?.image,
+      Array.isArray(raw?.product?.images) ? raw.product.images[0] : ""
+    );
+
+    return {
+      ...raw,
+      productId,
+      productName,
+      image,
+      quantity: Number(raw?.quantity ?? 0),
+      price: Number(raw?.price ?? raw?.unitPrice ?? raw?.unit_price ?? 0),
+    };
+  };
+
+  const enrichMissingProductNames = async (items: any[]) => {
+    const missingIds = Array.from(
+      new Set(
+        items
+          .filter((it) => !it?.productName && it?.productId)
+          .map((it) => String(it.productId))
+      )
+    ).slice(0, 10);
+
+    if (missingIds.length === 0) return items;
+
+    const infoById = new Map<string, { name?: string; image?: string }>();
+
+    await Promise.all(
+      missingIds.map(async (id) => {
+        try {
+          const res: any = await adminService.products.getById(id);
+          const body: any = res?.data ?? res;
+          const data: any = body?.data ?? body;
+          infoById.set(id, {
+            name: firstNonEmpty(data?.name, data?.productName),
+            image: firstNonEmpty(
+              data?.image,
+              Array.isArray(data?.images) ? data.images[0] : ""
+            ),
+          });
+        } catch {
+          // ignore
+        }
+      })
+    );
+
+    return items.map((it) => {
+      const info = infoById.get(String(it.productId));
+      if (!info) return it;
+      return {
+        ...it,
+        productName: it.productName || info.name || it.productName,
+        image: it.image || info.image || it.image,
+      };
+    });
+  };
 
   const getStatusLabel = (s: string) => {
     switch (s) {
@@ -92,12 +188,13 @@ const AdminOrders: React.FC = () => {
     }
   };
 
-  const normalizeOrder = (raw: any): Order => {
+  const normalizeOrder = (raw: any): AdminOrder => {
     const id = raw?.id ?? raw?._id ?? "";
     return {
       ...raw,
       id: String(id),
       userId: raw?.userId ?? raw?.user_id ?? "",
+      customerName: extractCustomerName(raw),
       total: Number(raw?.total ?? 0),
       status: (raw?.status ?? "pending") as Order["status"],
       paymentStatus: (raw?.paymentStatus ??
@@ -169,11 +266,56 @@ const AdminOrders: React.FC = () => {
     load();
   };
 
-  const handleViewOrder = (order: Order) => {
+  const handleViewOrder = async (order: Order) => {
     const normalized = normalizeOrder(order);
     setSelectedOrder(normalized);
-    setOrderItems(normalized.items ?? normalized.orderItems ?? []);
+    setOrderItems(
+      (normalized.items ?? normalized.orderItems ?? []).map(normalizeOrderItem)
+    );
     setOrderDetailOpen(true);
+
+    const id = getOrderId(normalized);
+    if (!id || id === "undefined") return;
+
+    try {
+      setLoading(true);
+      // Fetch full details (items often richer here)
+      const detailRes: any = await adminService.orders.getById(id);
+      const body: any = detailRes?.data ?? detailRes;
+      const data: any = body?.data ?? body;
+      const detailed = normalizeOrder(data);
+      setSelectedOrder(detailed);
+
+      const normalizedItems = (detailed.items ?? detailed.orderItems ?? [])
+        .map(normalizeOrderItem);
+      setOrderItems(await enrichMissingProductNames(normalizedItems));
+
+      // If backend doesn't include customer name, fetch user by id once
+      if (!detailed.customerName && detailed.userId) {
+        try {
+          const user: any = await adminService.users.getById(
+            String(detailed.userId)
+          );
+          const name = firstNonEmpty(
+            user?.fullName,
+            user?.name,
+            user?.username,
+            user?.email
+          );
+          if (name) {
+            setSelectedOrder((prev) =>
+              prev ? ({ ...prev, customerName: name } as AdminOrder) : prev
+            );
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } catch (err) {
+      console.error("Load order detail failed", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChangeStatus = (order: Order) => {
@@ -221,7 +363,12 @@ const AdminOrders: React.FC = () => {
 
   const columns: Column[] = [
     { id: "id", label: "Mã đơn", minWidth: 150 },
-    { id: "userId", label: "Khách hàng", minWidth: 150 },
+    {
+      id: "userId",
+      label: "Khách hàng",
+      minWidth: 180,
+      format: (_: any, row: any) => row?.customerName || row?.userId,
+    },
     {
       id: "total",
       label: "Tổng tiền",
@@ -233,7 +380,7 @@ const AdminOrders: React.FC = () => {
         }).format(value),
     },
     {
-      id: "status",
+      id: "status",     
       label: "Trạng thái",
       minWidth: 120,
       format: (value: string) => (
@@ -379,7 +526,8 @@ const AdminOrders: React.FC = () => {
                   <strong>Mã đơn:</strong> {selectedOrder.id}
                 </Typography>
                 <Typography>
-                  <strong>Khách hàng:</strong> {selectedOrder.userId}
+                  <strong>Khách hàng:</strong>{" "}
+                  {selectedOrder.customerName || selectedOrder.userId}
                 </Typography>
                 <Typography>
                   <strong>Địa chỉ giao hàng:</strong>{" "}
@@ -457,7 +605,7 @@ const AdminOrders: React.FC = () => {
                             <Box
                               component="img"
                               src={item.image}
-                              alt={item.productName}
+                              alt={item.productName || item.productId}
                               sx={{
                                 width: 50,
                                 height: 50,
